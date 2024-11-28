@@ -41,7 +41,7 @@ In Python:
 
     from cs import CloudStack
 
-    cs = CloudStack(endpoint='https://api.exoscale.ch/v1',
+    cs = CloudStack(endpoint='https://cloudstack.example.com/client/api',
                     key='cloudstack api key',
                     secret='cloudstack api secret')
 
@@ -58,13 +58,13 @@ From the command-line, this requires some configuration:
 .. code-block:: ini
 
     [cloudstack]
-    endpoint = https://api.exoscale.ch/v1
+    endpoint = https://cloudstack.example.com/client/api
     key = cloudstack api key
     secret = cloudstack api secret
     # Optional ca authority certificate
-    verify = /path/to/certs/exoscale_ca.crt
+    verify = /path/to/certs/ca.crt
     # Optional client PEM certificate
-    cert = /path/to/client_exoscale.pem
+    cert = /path/to/client.pem
     # If you need to pass the certificate and key as separate files
     cert_key = /path/to/client_key.pem
 
@@ -159,14 +159,14 @@ the credentials or endpoint to use with a command-line flag.
     key = api key
     secret = api secret
 
-    [exoscale]
-    endpoint = https://api.exoscale.ch/v1
+    [region-example]
+    endpoint = https://cloudstack.example.com/client/api
     key = api key
     secret = api secret
 
 Usage::
 
-    $ cs listVirtualMachines --region=exoscale
+    $ cs listVirtualMachines --region=region-example
 
 Optionally ``CLOUDSTACK_REGION`` can be used to overwrite the default region ``cloudstack``.
 
@@ -250,7 +250,7 @@ Release Procedure
 
     mktmpenv -p /usr/bin/python3
     pip install -U twine wheel build
-    cd exoscale/cs
+    cd ./cs
     rm -rf build dist
     python -m build
     twine upload dist/*
@@ -259,4 +259,3 @@ Links
 -----
 
 * CloudStack API: http://cloudstack.apache.org/api.html
-* Example of use: `Get Started with the exoscale API client <https://www.exoscale.com/syslog/2016/02/23/get-started-with-the-exoscale-api-client/>`_
