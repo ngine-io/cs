@@ -1,13 +1,20 @@
-CS
-==
+.. image:: https://github.com/ngine-io/cs/actions/workflows/main.yml/badge.svg
+   :alt: CI
+   :target: https://github.com/ngine-io/cs/actions/workflows/main.yml
+.. image:: https://img.shields.io/pypi/pyversions/cs.svg
+   :alt: Python versions
+   :target: https://pypi.org/project/cs/
+
+.. image:: https://img.shields.io/pypi/dw/cs.svg
+   :alt: Downloads / Week
+   :target: https://pypi.org/project/cs/
 
 .. image:: https://img.shields.io/pypi/l/cs.svg
    :alt: License
    :target: https://pypi.org/project/cs/
 
-.. image:: https://img.shields.io/pypi/pyversions/cs.svg
-   :alt: Python versions
-   :target: https://pypi.org/project/cs/
+CS - Python CloudStack API client 
+=================================
 
 A simple, yet powerful CloudStack API client for python and the command-line.
 
