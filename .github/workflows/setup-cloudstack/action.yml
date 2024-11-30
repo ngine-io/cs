@@ -55,7 +55,6 @@ runs:
       id: setup-cloudstack
       shell: bash
       run: |
-        docker exec $(docker container ls --format=json -l | jq -r .ID) python /root/tools/marvin/marvin/deployDataCenter.py -i /root/setup/dev/advanced.cfg
         curl -sf --location "${CLOUDSTACK_API_URL}" \
             --header 'Content-Type: application/x-www-form-urlencoded' \
             --data-urlencode 'command=login' \
