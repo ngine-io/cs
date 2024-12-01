@@ -1,0 +1,75 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# See https://raw.githubusercontent.com/apache/cloudstack-terraform-provider/refs/heads/main/.github/workflows/setup-cloudstack/action.yml
+
+name: Setup Cloudstack
+
+inputs:
+  cloudstack-version:
+    description: 'Cloudstack version'
+    required: true
+outputs:
+  CLOUDSTACK_USER_ID:
+    description: 'Cloudstack user id'
+    value: ${{ steps.setup-cloudstack.outputs.user_id }}
+  CLOUDSTACK_API_KEY:
+    description: 'Cloudstack api key'
+    value: ${{ steps.setup-cloudstack.outputs.api_key }}
+  CLOUDSTACK_SECRET_KEY:
+    description: 'Cloudstack secret key'
+    value: ${{ steps.setup-cloudstack.outputs.secret_key }}
+  CLOUDSTACK_API_URL:
+    description: 'Cloudstack API URL'
+    value: http://localhost:8080/client/api
+
+runs:
+  using: composite
+  steps:
+    - name: Wait Cloudstack to be ready
+      shell: bash
+      run: |
+        echo "Starting Cloudstack health check"
+        T=0
+        until [ $T -gt 20 ]  || curl -sfL http://localhost:8080 --output /dev/null
+        do
+            echo "Waiting for Cloudstack to be ready..."
+            ((T+=1))
+            sleep 30
+        done
+    - name: Setting up Cloudstack
+      id: setup-cloudstack
+      shell: bash
+      run: |
+        curl -sf --location "${CLOUDSTACK_API_URL}" \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'command=login' \
+            --data-urlencode 'username=admin' \
+            --data-urlencode 'password=password' \
+            --data-urlencode 'response=json' \
+            --data-urlencode 'domain=/' -j -c cookies.txt --output /dev/null
+
+        CLOUDSTACK_USER_ID=$(curl -fs "${CLOUDSTACK_API_URL}?command=listUsers&response=json" -b cookies.txt | jq -r '.listusersresponse.user[0].id')
+        CLOUDSTACK_API_KEY=$(curl -s "${CLOUDSTACK_API_URL}?command=getUserKeys&id=${CLOUDSTACK_USER_ID}&response=json" -b cookies.txt | jq -r '.getuserkeysresponse.userkeys.apikey')
+        CLOUDSTACK_SECRET_KEY=$(curl -fs "${CLOUDSTACK_API_URL}?command=getUserKeys&id=${CLOUDSTACK_USER_ID}&response=json" -b cookies.txt | jq -r '.getuserkeysresponse.userkeys.secretkey')
+
+        echo "::add-mask::$CLOUDSTACK_API_KEY"
+        echo "::add-mask::$CLOUDSTACK_SECRET_KEY"
+
+        echo "user_id=$CLOUDSTACK_USER_ID" >> $GITHUB_OUTPUT
+        echo "api_key=$CLOUDSTACK_API_KEY" >> $GITHUB_OUTPUT
+        echo "secret_key=$CLOUDSTACK_SECRET_KEY" >> $GITHUB_OUTPUT
