@@ -4,16 +4,8 @@ import os
 from contextlib import contextmanager
 from functools import partial
 from unittest import TestCase
-
-try:
-    from unittest.mock import patch
-except ImportError:
-    from mock import patch
-
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
+from unittest.mock import patch
+from urllib.parse import urlparse, parse_qs
 
 from cs import (
     CloudStack,
