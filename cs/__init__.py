@@ -3,11 +3,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-
-try:
-    from configparser import NoSectionError
-except ImportError:  # python 2
-    from ConfigParser import NoSectionError
+from configparser import NoSectionError
 
 try:
     import pygments
@@ -32,15 +28,14 @@ __all__ = [
     "CloudStackApiException",
 ]
 
-if sys.version_info >= (3, 5):
-    try:
-        import aiohttp  # noqa
-    except ImportError:
-        pass
-    else:
-        from ._async import AIOCloudStack  # noqa
+try:
+    import aiohttp  # noqa
+except ImportError:
+    pass
+else:
+    from ._async import AIOCloudStack  # noqa
 
-        __all__.append("AIOCloudStack")
+    __all__.append("AIOCloudStack")
 
 
 def _format_json(data, theme):
