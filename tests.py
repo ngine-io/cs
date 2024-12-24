@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from functools import partial
 from unittest import TestCase
 from unittest.mock import patch
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from cs import (
     CloudStack,
