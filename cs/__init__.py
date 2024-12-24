@@ -19,6 +19,7 @@ from .client import (
     CloudStackException,
     read_config,
 )
+from .version import __version__
 
 
 __all__ = [
@@ -51,7 +52,7 @@ def _format_json(data, theme):
 
 
 def main(args=None):
-    parser = argparse.ArgumentParser(description="Cloustack client.")
+    parser = argparse.ArgumentParser(description="Cloudstack client.")
     parser.add_argument(
         "--region",
         "-r",
@@ -92,7 +93,15 @@ def main(args=None):
         help="trace the HTTP requests done on stderr",
     )
     parser.add_argument(
-        "command", metavar="COMMAND", help="Cloudstack API command to execute"
+        "command",
+        metavar="COMMAND",
+        help="Cloudstack API command to execute",
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
     )
 
     def parse_option(x):
@@ -111,6 +120,7 @@ def main(args=None):
     )
 
     options = parser.parse_args(args=args)
+
     command = options.command
     kwargs = defaultdict(set)
     for arg in options.arguments:
@@ -128,8 +138,10 @@ def main(args=None):
 
     if options.post:
         config["method"] = "post"
+
     if options.trace:
         config["trace"] = True
+
     cs = CloudStack(**config)
     ok = True
     response = None
