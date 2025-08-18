@@ -59,7 +59,7 @@ jobs:
         python-version:
           - '3.12'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure Cloudstack v${{ matrix.cloudstack-version }}
         uses: ./.github/workflows/setup-cloudstack
         id: setup-cloudstack
