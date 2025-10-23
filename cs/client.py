@@ -9,8 +9,7 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 from fnmatch import fnmatch
 from urllib.parse import quote
-
-import pytz
+from zoneinfo import ZoneInfo
 
 import requests
 from requests.structures import CaseInsensitiveDict
@@ -245,8 +244,9 @@ class CloudStack(object):
             params.setdefault("pagesize", PAGE_SIZE)
         if "expires" not in params and self.expiration.total_seconds() >= 0:
             params["signatureVersion"] = "3"
-            tz = pytz.utc
-            expires = tz.localize(datetime.utcnow() + self.expiration)
+            tz = ZoneInfo("UTC")
+            expires = datetime.utcnow() + self.expiration
+            expires = expires.replace(tzinfo=tz)
             params["expires"] = expires.astimezone(tz).strftime(EXPIRES_FORMAT)
 
         kind = "params" if self.method == "get" else "data"
