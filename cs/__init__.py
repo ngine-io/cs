@@ -105,9 +105,8 @@ def main(args=None):
 
     def parse_option(x):
         if "=" not in x:
-            raise ValueError(
-                "{!r} is not a correctly formatted " "option".format(x)
-            )
+            raise ValueError(f"{x!r} is not a correctly formatted option")
+
         return x.split("=", 1)
 
     parser.add_argument(
