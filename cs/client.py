@@ -352,7 +352,7 @@ class CloudStack(object):
             if not ctype.startswith(("application/json", "text/javascript")):
                 if response.status_code == 200:
                     msg = (
-                        f"JSON (application/json) was expected, got {ctype:!r}"
+                        f"JSON (application/json) was expected, got {ctype!r}"
                     )
                     raise CloudStackException(msg, response=response)
 
