@@ -21,7 +21,7 @@ class AIOCloudStack(CloudStack):
         opcode_name="command",
         fetch_list=False,
         headers=None,
-        **params
+        **params,
     ):
         fetch_result = params.pop("fetch_result", self.fetch_result)
         kwarg, kwargs = self._prepare_request(
@@ -60,14 +60,14 @@ class AIOCloudStack(CloudStack):
                 try:
                     data = await response.json(content_type=ctype)
                 except ValueError as e:
-                    msg = "Make sure endpoint URL {!r} is correct.".format(
-                        self.endpoint
+                    msg = (
+                        f"Make sure endpoint URL {self.endpoint!r} is "
+                        f"correct."
                     )
+
                     raise CloudStackException(
-                        "HTTP {0} response from CloudStack".format(
-                            response.status
-                        ),
-                        "{}. {}".format(e, msg),
+                        f"HTTP {response.status} response from CloudStack",
+                        f"{e}. {msg}",
                         response=response,
                     )
 

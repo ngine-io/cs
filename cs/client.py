@@ -145,23 +145,19 @@ def transform(params):
 class CloudStackException(Exception):
     """Exception nicely wrapping a request response."""
 
-    def __init__(self, *args, **kwargs):  # noqa
-        self.response = kwargs.pop("response")
-        super(CloudStackException, self).__init__(*args, **kwargs)
+    def __init__(self, message, response):
+        super().__init__(message, response)
+        self.response = response
 
 
-class CloudStackApiException(CloudStackException):
-    def __init__(self, *args, **kwargs):  # noqa
-        self.error = kwargs.pop("error")
-        super(CloudStackApiException, self).__init__(*args, **kwargs)
+class CloudStackApiException(Exception):
+    def __init__(self, message, error, response):
+        super().__init__(message, error, response)
+        self.error = error
+        self.response = response
 
     def __str__(self):
-        return "{0}, error: {1}".format(
-            super(CloudStackApiException, self).__str__(), self.error
-        )
-
-
-ten_minutes = timedelta(minutes=10)
+        return f"{self.__class__.__qualname__}, error: {self.error}"
 
 
 class CloudStack(object):
@@ -179,7 +175,7 @@ class CloudStack(object):
         retry=0,
         job_timeout=None,
         poll_interval=POLL_INTERVAL,
-        expiration=ten_minutes,
+        expiration=EXPIRATION,
         trace=False,
         dangerous_no_tls_verify=False,
         headers=None,
@@ -213,7 +209,7 @@ class CloudStack(object):
         self.fetch_result = fetch_result
 
     def __repr__(self):
-        return "<CloudStack: {0}>".format(self.name or self.endpoint)
+        return f"<CloudStack: {self.name or self.endpoint}>"
 
     def __getattr__(self, command):
         def handler(**kwargs):
@@ -243,8 +239,7 @@ class CloudStack(object):
         if "expires" not in params and self.expiration.total_seconds() >= 0:
             params["signatureVersion"] = "3"
             tz = ZoneInfo("UTC")
-            expires = datetime.utcnow() + self.expiration
-            expires = expires.replace(tzinfo=tz)
+            expires = datetime.now(tz) + self.expiration
             params["expires"] = expires.astimezone(tz).strftime(EXPIRES_FORMAT)
 
         kind = "params" if self.method == "get" else "data"
@@ -313,7 +308,7 @@ class CloudStack(object):
             if self.trace:
                 print(response.status_code, response.reason, file=sys.stderr)
                 headersTrace = "\n".join(
-                    "{}: {}".format(k, v) for k, v in response.headers.items()
+                    f"{k}: {v}" for k, v in response.headers.items()
                 )
                 print(headersTrace, "\n", file=sys.stderr)
                 print(response.text, "\n", file=sys.stderr)
@@ -355,10 +350,8 @@ class CloudStack(object):
                     raise CloudStackException(msg, response=response)
 
                 raise CloudStackException(
-                    "HTTP {0.status_code} {0.reason}".format(response),
-                    "Make sure endpoint URL {!r} is correct.".format(
-                        self.endpoint
-                    ),
+                    f"HTTP {response.status_code} {response.reason}",
+                    f"Make sure endpoint URL {self.endpoint!r} is correct.",
                     response=response,
                 )
 
@@ -366,8 +359,8 @@ class CloudStack(object):
                 data = response.json()
             except ValueError as e:
                 raise CloudStackException(
-                    "HTTP {0.status_code} {0.reason}".format(response),
-                    "{0!s}. Malformed JSON document".format(e),
+                    f"HTTP {response.status_code} {response.reason}",
+                    f"{e!s}. Malformed JSON document",
                     response=response,
                 )
 
@@ -378,11 +371,7 @@ class CloudStack(object):
 
         if response.status_code != 200:
             raise CloudStackApiException(
-                "HTTP {0} response from CloudStack".format(
-                    response.status_code
-                ),
-                error=data,
-                response=response,
+                f"HTTP {response.status_code} response from CloudStack"
             )
 
         return data
@@ -440,8 +429,7 @@ class CloudStack(object):
                         response.status_code, response.reason, file=sys.stderr
                     )
                     headersTrace = "\n".join(
-                        "{}: {}".format(k, v)
-                        for k, v in response.headers.items()
+                        f"{k}: {v}" for k, v in response.headers.items()
                     )
                     print(headersTrace, "\n", file=sys.stderr)
                     print(response.text, "\n", file=sys.stderr)
