@@ -15,12 +15,10 @@ import pytz
 import requests
 from requests.structures import CaseInsensitiveDict
 
-
 try:
     from . import AIOCloudStack  # noqa
 except ImportError:
     pass
-
 
 TIMEOUT = 10
 PAGE_SIZE = 500
@@ -148,13 +146,13 @@ def transform(params):
 class CloudStackException(Exception):
     """Exception nicely wrapping a request response."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa
         self.response = kwargs.pop("response")
         super(CloudStackException, self).__init__(*args, **kwargs)
 
 
 class CloudStackApiException(CloudStackException):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # noqa
         self.error = kwargs.pop("error")
         super(CloudStackApiException, self).__init__(*args, **kwargs)
 
