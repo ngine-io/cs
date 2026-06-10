@@ -371,7 +371,9 @@ class CloudStack(object):
 
         if response.status_code != 200:
             raise CloudStackApiException(
-                f"HTTP {response.status_code} response from CloudStack"
+                f"HTTP {response.status_code} response from CloudStack",
+                error=data,
+                response=response,
             )
 
         return data
