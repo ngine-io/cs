@@ -267,8 +267,11 @@ formatting.
     # Create the virtualenv and install all dependencies
     uv sync --all-extras
 
-    # Run the test suite
+    # Run the test suite (with a coverage report)
     uv run pytest
+
+    # Run a subset of the tests, without the coverage threshold
+    uv run pytest --no-cov tests/test_client.py -k signature
 
     # Run the test suite against another Python version
     uv run --python 3.10 pytest
