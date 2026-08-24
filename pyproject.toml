@@ -43,6 +43,8 @@ Issues = "https://github.com/ngine-io/cs/issues"
 
 [dependency-groups]
 dev = [
+    "aiohttp",
+    "pygments",
     "pytest>=8",
     "pytest-cov>=5",
     "ruff>=0.14",
@@ -54,7 +56,7 @@ path = "cs/version.py"
 [tool.hatch.build.targets.sdist]
 include = [
     "/cs",
-    "/tests.py",
+    "/tests",
     "/README.rst",
     "/LICENSE",
 ]
@@ -81,10 +83,17 @@ select = [
 
 [tool.pytest.ini_options]
 addopts = "--cov=cs --cov-report=term-missing"
-testpaths = ["tests.py"]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["cs"]
+branch = true
 
 [tool.coverage.report]
-exclude_also = ["if TYPE_CHECKING:"]
+fail_under = 95
+exclude_also = [
+    "if TYPE_CHECKING:",
+    # the optional dependencies are always installed in the test environment
+    "except ImportError:",
+    'if __name__ == "__main__":',
+]

@@ -63,7 +63,7 @@ def main(args=None):
         "--theme",
         metavar="THEME",
         help="Pygments style",
-        default=os.environ.get("CLOUDSTACK_THEME", "default"),
+        default=os.environ.get("CLOUDSTACK_THEME"),
     )
     parser.add_argument(
         "--post",
@@ -105,7 +105,10 @@ def main(args=None):
 
     def parse_option(x):
         if "=" not in x:
-            raise ValueError(f"{x!r} is not a correctly formatted option")
+            # argparse only reports the message of ArgumentTypeError
+            raise argparse.ArgumentTypeError(
+                f"{x!r} is not a correctly formatted option"
+            )
 
         return x.split("=", 1)
 
@@ -130,7 +133,9 @@ def main(args=None):
     except NoSectionError as e:
         raise SystemExit(f"Error: region '{options.region}' not in config") from e
 
-    theme = config.pop("theme", "default")
+    # the command line and the environment take precedence over the config
+    config_theme = config.pop("theme", None)
+    theme = options.theme or config_theme or "default"
 
     fetch_result = "Async" not in command and not getattr(options, "async")
 
