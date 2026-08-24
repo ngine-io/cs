@@ -255,17 +255,40 @@ ________________________________
 
     asyncio.run(main())
 
-Release Procedure
------------------
+Development
+-----------
+
+This project uses `uv <https://docs.astral.sh/uv/>`_ for dependency
+management and `ruff <https://docs.astral.sh/ruff/>`_ for linting and
+formatting.
 
 .. code-block:: shell-session
 
-    mktmpenv -p /usr/bin/python3
-    pip install -U twine wheel build
-    cd ./cs
-    rm -rf build dist
-    python -m build
-    twine upload dist/*
+    # Create the virtualenv and install all dependencies
+    uv sync --all-extras
+
+    # Run the test suite
+    uv run pytest
+
+    # Run the test suite against another Python version
+    uv run --python 3.10 pytest
+
+    # Lint and format
+    uvx ruff check .
+    uvx ruff format .
+
+Release Procedure
+-----------------
+
+Bump the version in ``cs/version.py``, then create a GitHub release: the
+``Upload Python Package`` workflow builds and publishes to PyPI. To build
+and publish manually:
+
+.. code-block:: shell-session
+
+    rm -rf dist
+    uv build
+    uv publish
 
 Links
 -----

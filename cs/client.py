@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import hashlib
 import hmac
 import os
@@ -13,11 +14,6 @@ from zoneinfo import ZoneInfo
 
 import requests
 from requests.structures import CaseInsensitiveDict
-
-try:
-    from . import AIOCloudStack  # noqa
-except ImportError:
-    pass
 
 TIMEOUT = 10
 PAGE_SIZE = 500
@@ -58,22 +54,21 @@ FAILURE = 2
 
 
 def strtobool(val):
-    """Convert a string representation of truth to true (1) or false (0).
+    """Convert a string representation of truth to True or False.
 
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
     are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
     'val' is anything else.
 
-    This function has been borrowed from distutils.util module in order
-    to avoid pulling a dependency on deprecated module "imp".
+    This function has been borrowed from the distutils.util module, which
+    is gone since Python 3.12.
     """
     val = val.lower()
     if val in ("y", "yes", "t", "true", "on", "1"):
-        return 1
-    elif val in ("n", "no", "f", "false", "off", "0"):
-        return 0
-    else:
-        raise ValueError("invalid truth value %r" % (val,))
+        return True
+    if val in ("n", "no", "f", "false", "off", "0"):
+        return False
+    raise ValueError(f"invalid truth value {val!r}")
 
 
 def check_key(key, allowed):
@@ -85,11 +80,7 @@ def check_key(key, allowed):
     if key in allowed:
         return True
 
-    for pattern in allowed:
-        if fnmatch(key, pattern):
-            return True
-
-    return False
+    return any(fnmatch(key, pattern) for pattern in allowed)
 
 
 def cs_encode(s):
@@ -136,7 +127,7 @@ def transform(params):
                     params.pop(key)
                     for index, val in enumerate(value):
                         for name, v in val.items():
-                            k = "%s[%d].%s" % (key, index, name)
+                            k = f"{key}[{index}].{name}"
                             params[k] = str(v)
         else:
             raise ValueError(type(value))
@@ -145,22 +136,24 @@ def transform(params):
 class CloudStackException(Exception):
     """Exception nicely wrapping a request response."""
 
-    def __init__(self, message, response):
-        super().__init__(message, response)
+    def __init__(self, *args, response=None):
+        super().__init__(*args)
         self.response = response
 
 
-class CloudStackApiException(Exception):
-    def __init__(self, message, error, response):
-        super().__init__(message, error, response)
+class CloudStackApiException(CloudStackException):
+    """Exception raised when CloudStack reports an API error."""
+
+    def __init__(self, *args, error=None, response=None):
+        super().__init__(*args, response=response)
         self.error = error
-        self.response = response
 
     def __str__(self):
-        return f"{self.__class__.__qualname__}, error: {self.error}"
+        message = self.args[0] if self.args else self.__class__.__qualname__
+        return f"{message}, error: {self.error}"
 
 
-class CloudStack(object):
+class CloudStack:
     def __init__(
         self,
         endpoint,
@@ -210,6 +203,21 @@ class CloudStack(object):
 
     def __repr__(self):
         return f"<CloudStack: {self.name or self.endpoint}>"
+
+    def _trace_request(self, prepped):
+        print(prepped.method, prepped.url, file=sys.stderr)
+        if prepped.headers:
+            print(prepped.headers, "\n", file=sys.stderr)
+        if prepped.body:
+            print(prepped.body, file=sys.stderr)
+        else:
+            print(file=sys.stderr)
+
+    def _trace_response(self, response):
+        print(response.status_code, response.reason, file=sys.stderr)
+        headers = "\n".join(f"{k}: {v}" for k, v in response.headers.items())
+        print(headers, "\n", file=sys.stderr)
+        print(response.text, "\n", file=sys.stderr)
 
     def __getattr__(self, command):
         def handler(**kwargs):
@@ -279,13 +287,7 @@ class CloudStack(object):
             )
             prepped = req.prepare()
             if self.trace:
-                print(prepped.method, prepped.url, file=sys.stderr)
-                if prepped.headers:
-                    print(prepped.headers, "\n", file=sys.stderr)
-                if prepped.body:
-                    print(prepped.body, file=sys.stderr)
-                else:
-                    print(file=sys.stderr)
+                self._trace_request(prepped)
 
             try:
                 with self.session as session:
@@ -298,26 +300,19 @@ class CloudStack(object):
 
             except requests.exceptions.ConnectionError:
                 max_retry -= 1
-                if max_retry < 0 or not command.startswith(
-                    ("list", "queryAsync")
-                ):
+                if max_retry < 0 or not command.startswith(("list", "queryAsync")):
                     raise
                 continue
             max_retry = self.retry
 
             if self.trace:
-                print(response.status_code, response.reason, file=sys.stderr)
-                headersTrace = "\n".join(
-                    f"{k}: {v}" for k, v in response.headers.items()
-                )
-                print(headersTrace, "\n", file=sys.stderr)
-                print(response.text, "\n", file=sys.stderr)
+                self._trace_response(response)
 
             data = self._response_value(response, json)
 
             if fetch_list:
                 try:
-                    [key] = [k for k in data.keys() if k != "count"]
+                    [key] = [k for k in data if k != "count"]
                 except ValueError:
                     done = True
                 else:
@@ -326,9 +321,7 @@ class CloudStack(object):
                     if len(final_data) >= data.get("count", PAGE_SIZE):
                         done = True
             elif fetch_result and "jobid" in data:
-                final_data = self._jobresult(
-                    jobid=data["jobid"], headers=headers
-                )
+                final_data = self._jobresult(jobid=data["jobid"], headers=headers)
                 done = True
             else:
                 final_data = data
@@ -344,9 +337,7 @@ class CloudStack(object):
             ctype = response.headers.get("Content-Type", "")
             if not ctype.startswith(("application/json", "text/javascript")):
                 if response.status_code == 200:
-                    msg = (
-                        f"JSON (application/json) was expected, got {ctype!r}"
-                    )
+                    msg = f"JSON (application/json) was expected, got {ctype!r}"
                     raise CloudStackException(msg, response=response)
 
                 raise CloudStackException(
@@ -362,7 +353,7 @@ class CloudStack(object):
                     f"HTTP {response.status_code} {response.reason}",
                     f"{e!s}. Malformed JSON document",
                     response=response,
-                )
+                ) from e
 
             [key] = data.keys()
             data = data[key]
@@ -385,6 +376,7 @@ class CloudStack(object):
         the result list which is a hack.
         """
         failures = 0
+        response = None
 
         total_time = self.job_timeout or 2**30
         remaining = timedelta(seconds=total_time)
@@ -393,9 +385,7 @@ class CloudStack(object):
         while remaining.total_seconds() > 0:
             timeout = max(min(self.timeout, remaining.total_seconds()), 1)
             try:
-                kind, params = self._prepare_request(
-                    "queryAsyncJobResult", jobid=jobid
-                )
+                kind, params = self._prepare_request("queryAsyncJobResult", jobid=jobid)
 
                 transform(params)
                 self._sign(params)
@@ -408,13 +398,7 @@ class CloudStack(object):
                 )
                 prepped = req.prepare()
                 if self.trace:
-                    print(prepped.method, prepped.url, file=sys.stderr)
-                    if prepped.headers:
-                        print(prepped.headers, "\n", file=sys.stderr)
-                    if prepped.body:
-                        print(prepped.body, file=sys.stderr)
-                    else:
-                        print(file=sys.stderr)
+                    self._trace_request(prepped)
 
                 with self.session as session:
                     response = session.send(
@@ -424,17 +408,10 @@ class CloudStack(object):
                         cert=self.cert,
                     )
 
-                j = self._response_value(response, json)
-
                 if self.trace:
-                    print(
-                        response.status_code, response.reason, file=sys.stderr
-                    )
-                    headersTrace = "\n".join(
-                        f"{k}: {v}" for k, v in response.headers.items()
-                    )
-                    print(headersTrace, "\n", file=sys.stderr)
-                    print(response.text, "\n", file=sys.stderr)
+                    self._trace_response(response)
+
+                j = self._response_value(response, json)
 
                 failures = 0
                 if j["jobstatus"] != PENDING:
@@ -463,7 +440,7 @@ class CloudStack(object):
             time.sleep(self.poll_interval)
             remaining = endtime - datetime.now()
 
-        if response:
+        if response is not None:
             response.status_code = 408
 
         raise CloudStackException(
@@ -478,8 +455,7 @@ class CloudStack(object):
 
         # Python2/3 urlencode aren't good enough for this task.
         params = "&".join(
-            "=".join((key, cs_encode(value)))
-            for key, value in sorted(data.items())
+            "=".join((key, cs_encode(value))) for key, value in sorted(data.items())
         )
 
         digest = hmac.new(
@@ -501,10 +477,8 @@ def read_config_from_ini(ini_group=None):
     # Look at CLOUDSTACK_CONFIG first if present
     if "CLOUDSTACK_CONFIG" in os.environ:
         paths.append(os.path.expanduser(os.environ["CLOUDSTACK_CONFIG"]))
-    if not any([os.path.exists(c) for c in paths]):
-        raise SystemExit(
-            "Config file not found. Tried {0}".format(", ".join(paths))
-        )
+    if not any(os.path.exists(c) for c in paths):
+        raise SystemExit("Config file not found. Tried " + ", ".join(paths))
     conf = ConfigParser()
     conf.read(paths)
 
@@ -512,7 +486,7 @@ def read_config_from_ini(ini_group=None):
         ini_group = os.getenv("CLOUDSTACK_REGION", "cloudstack")
 
         if not conf.has_section(ini_group):
-            return dict(name=None)
+            return {"name": None}
 
     ini_config = {
         k: v
@@ -539,7 +513,7 @@ def read_config(ini_group=None):
     """
     env_conf = dict(DEFAULT_CONFIG)
     for key in REQUIRED_CONFIG_KEYS.union(ALLOWED_CONFIG_KEYS):
-        env_key = "CLOUDSTACK_{0}".format(key.upper())
+        env_key = f"CLOUDSTACK_{key.upper()}"
         value = os.getenv(env_key)
         if value:
             env_conf[key] = value
@@ -561,17 +535,14 @@ def read_config(ini_group=None):
     missings = REQUIRED_CONFIG_KEYS.difference(config)
     if missings:
         raise ValueError(
-            "the configuration is missing the following keys: "
-            + ", ".join(missings)
+            "the configuration is missing the following keys: " + ", ".join(missings)
         )
 
     # convert booleans values.
     bool_keys = ("dangerous_no_tls_verify",)
     for bool_key in bool_keys:
         if isinstance(config[bool_key], str):
-            try:
+            with contextlib.suppress(ValueError):
                 config[bool_key] = strtobool(config[bool_key])
-            except ValueError:
-                pass
 
     return config
