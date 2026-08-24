@@ -1,11 +1,14 @@
-# coding: utf-8
 import datetime
 import os
+import ssl
+import unittest
 from contextlib import contextmanager
 from functools import partial
 from unittest import TestCase
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
+
+from requests.structures import CaseInsensitiveDict
 
 from cs import (
     CloudStack,
@@ -15,7 +18,10 @@ from cs import (
 )
 from cs.client import EXPIRES_FORMAT
 
-from requests.structures import CaseInsensitiveDict
+try:
+    from cs import AIOCloudStack
+except ImportError:  # pragma: no cover - aiohttp is an optional dependency
+    AIOCloudStack = None
 
 
 @contextmanager
@@ -48,10 +54,17 @@ def cwd(path):
 
 class ExceptionTest(TestCase):
     def test_api_exception_str(self):
-        e = CloudStackApiException(
-            "CS failed", error={"test": 42}, response=None
-        )
+        e = CloudStackApiException("CS failed", error={"test": 42}, response=None)
         self.assertEqual("CS failed, error: {'test': 42}", str(e))
+
+    def test_api_exception_is_a_cloudstack_exception(self):
+        e = CloudStackApiException("CS failed", error={}, response=None)
+        self.assertIsInstance(e, CloudStackException)
+
+    def test_exception_accepts_several_message_args(self):
+        e = CloudStackException("HTTP 502", "Check the endpoint", response=42)
+        self.assertEqual(("HTTP 502", "Check the endpoint"), e.args)
+        self.assertEqual(42, e.response)
 
 
 class ConfigTest(TestCase):
@@ -126,14 +139,17 @@ class ConfigTest(TestCase):
             )
             self.addCleanup(partial(os.remove, "/tmp/cloudstack.ini"))
         # Secret gets read from env var
-        with env(
-            CLOUDSTACK_ENDPOINT="https://api.example.com/from-env",
-            CLOUDSTACK_KEY="test key from env",
-            CLOUDSTACK_SECRET="test secret from env",
-            CLOUDSTACK_REGION="hanibal",
-            CLOUDSTACK_DANGEROUS_NO_TLS_VERIFY="1",
-            CLOUDSTACK_OVERRIDES="endpoint,secret",
-        ), cwd("/tmp"):
+        with (
+            env(
+                CLOUDSTACK_ENDPOINT="https://api.example.com/from-env",
+                CLOUDSTACK_KEY="test key from env",
+                CLOUDSTACK_SECRET="test secret from env",
+                CLOUDSTACK_REGION="hanibal",
+                CLOUDSTACK_DANGEROUS_NO_TLS_VERIFY="1",
+                CLOUDSTACK_OVERRIDES="endpoint,secret",
+            ),
+            cwd("/tmp"),
+        ):
             conf = read_config()
             self.assertEqual(
                 {
@@ -238,7 +254,7 @@ class RequestTest(TestCase):
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=20, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 20, "verify": True}, kwargs)
         self.assertEqual("GET", request.method)
         self.assertEqual("br", request.headers["Accept-Encoding"])
 
@@ -275,7 +291,7 @@ class RequestTest(TestCase):
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=20, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 20, "verify": True}, kwargs)
         self.assertEqual("GET", request.method)
         self.assertFalse(request.headers)
 
@@ -332,7 +348,7 @@ class RequestTest(TestCase):
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=10, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 10, "verify": True}, kwargs)
         self.assertEqual("GET", request.method)
         self.assertFalse(request.headers)
 
@@ -358,14 +374,12 @@ class RequestTest(TestCase):
         mock.return_value.json.return_value = {
             "scalevirtualmachineresponse": {},
         }
-        cs.scaleVirtualMachine(
-            id="a", details={"cpunumber": 1000, "memory": "640k"}
-        )
+        cs.scaleVirtualMachine(id="a", details={"cpunumber": 1000, "memory": "640k"})
         self.assertEqual(1, mock.call_count)
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=10, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 10, "verify": True}, kwargs)
         self.assertEqual("GET", request.method)
         self.assertFalse(request.headers)
 
@@ -394,7 +408,7 @@ class RequestTest(TestCase):
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=10, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 10, "verify": True}, kwargs)
         self.assertEqual("GET", request.method)
         self.assertFalse(request.headers)
 
@@ -424,7 +438,7 @@ class RequestTest(TestCase):
 
         [request], kwargs = mock.call_args
 
-        self.assertEqual(dict(cert=None, timeout=10, verify=True), kwargs)
+        self.assertEqual({"cert": None, "timeout": 10, "verify": True}, kwargs)
         self.assertEqual("POST", request.method)
         self.assertEqual(
             "application/x-www-form-urlencoded",
@@ -458,7 +472,7 @@ class RequestTest(TestCase):
             **{"content-type": "text/html;charset=utf-8"}
         )
         get.return_value.text = (
-            "<!DOCTYPE html><title>502</title>" "<h1>Gateway timeout</h1>"
+            "<!DOCTYPE html><title>502</title><h1>Gateway timeout</h1>"
         )
 
         cs = CloudStack(endpoint="https://localhost", key="foo", secret="bar")
@@ -488,7 +502,23 @@ class RequestTest(TestCase):
         self.assertEqual("3", qs["signatureVersion"][0])
 
         expires = qs["expires"][0]
-        # we ignore the timezone for Python2's lack of %z
-        expires = datetime.datetime.strptime(expires[:19], EXPIRES_FORMAT[:-2])
+        expires = datetime.datetime.strptime(expires, EXPIRES_FORMAT)
 
-        self.assertTrue(expires > datetime.datetime.utcnow(), expires)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.assertTrue(expires > now, expires)
+
+
+@unittest.skipIf(AIOCloudStack is None, "aiohttp is not installed")
+class AsyncClientTest(TestCase):
+    def test_ssl_context_without_verification(self):
+        cs = AIOCloudStack(
+            endpoint="https://localhost",
+            key="foo",
+            secret="bar",
+            dangerous_no_tls_verify=True,
+        )
+        self.assertIs(False, cs._ssl_context())
+
+    def test_ssl_context_with_default_verification(self):
+        cs = AIOCloudStack(endpoint="https://localhost", key="foo", secret="bar")
+        self.assertIsInstance(cs._ssl_context(), ssl.SSLContext)

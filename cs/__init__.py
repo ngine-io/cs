@@ -7,9 +7,9 @@ from configparser import NoSectionError
 
 try:
     import pygments
+    from pygments.formatters import Terminal256Formatter
     from pygments.lexers import JsonLexer
     from pygments.styles import get_style_by_name
-    from pygments.formatters import Terminal256Formatter
 except ImportError:
     pygments = None
 
@@ -22,10 +22,10 @@ from .client import (
 from .version import __version__
 
 __all__ = [
-    "read_config",
     "CloudStack",
-    "CloudStackException",
     "CloudStackApiException",
+    "CloudStackException",
+    "read_config",
 ]
 
 try:
@@ -127,8 +127,8 @@ def main(args=None):
 
     try:
         config = read_config(ini_group=options.region)
-    except NoSectionError:
-        raise SystemExit("Error: region '%s' not in config" % options.region)
+    except NoSectionError as e:
+        raise SystemExit(f"Error: region '{options.region}' not in config") from e
 
     theme = config.pop("theme", "default")
 
@@ -151,7 +151,7 @@ def main(args=None):
         if e.response is not None:
             if not options.quiet:
                 sys.stderr.write("CloudStack error: ")
-                sys.stderr.write("\n".join((str(arg) for arg in e.args)))
+                sys.stderr.write("\n".join(str(arg) for arg in e.args))
                 sys.stderr.write("\n")
 
             try:
@@ -161,7 +161,7 @@ def main(args=None):
                 sys.stderr.write("\n")
         else:
             message, data = (e.args[0], e.args[0:])
-            sys.stderr.write("Error: {0}\n{1}\n".format(message, data))
+            sys.stderr.write(f"Error: {message}\n{data}\n")
 
     if response:
         sys.stdout.write(_format_json(response, theme=theme))

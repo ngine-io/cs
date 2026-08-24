@@ -65,8 +65,9 @@ jobs:
         id: setup-cloudstack
         with:
           cloudstack-version: ${{ matrix.cloudstack-version }}
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
       - name: Run acceptance test
         env:
@@ -74,12 +75,7 @@ jobs:
           CLOUDSTACK_KEY: ${{ steps.setup-cloudstack.outputs.CLOUDSTACK_API_KEY }}
           CLOUDSTACK_SECRET: ${{ steps.setup-cloudstack.outputs.CLOUDSTACK_SECRET_KEY }}
           CLOUDSTACK_ENDPOINT: ${{ steps.setup-cloudstack.outputs.CLOUDSTACK_API_URL }}
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          which python
-          pip install .
-          cs listZones
+        run: uv run --no-project --with . cs listZones
 
   all-jobs-passed: # Will succeed if it is skipped
     runs-on: ubuntu-latest

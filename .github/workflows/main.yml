@@ -13,6 +13,12 @@ on:
     tags-ignore:
       - 'v**'  # Don't run CI tests on release tags
 
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+
 jobs:
   tests:
     name: Tests on ${{ matrix.python-version }}
@@ -28,32 +34,41 @@ jobs:
           - '3.14'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - name: "Install dependencies"
-        run: |
-          python -VV
-          python -m site
-          python -m pip install -U pip wheel setuptools
-          python -m pip install -U tox tox-gh-actions
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
       - name: Tests
-        run: tox
+        run: uv run pytest -v
+
   lint:
     name: Linting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
-          python-version: '3.x'
-      - name: "Install dependencies"
-        run: |
-          python -VV
-          python -m site
-          python -m pip install -U pip wheel setuptools
-          python -m pip install -U black flake8 flake8-import-order flake8-bugbear
-      - name: Lint
-        run: |
-          black --check --diff .
-          flake8 .
+          enable-cache: true
+      - name: Ruff check
+        run: uvx ruff check --output-format=github .
+      - name: Ruff format
+        run: uvx ruff format --check --diff .
+
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          enable-cache: true
+      - name: Build
+        run: uv build
+      - name: Check metadata
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

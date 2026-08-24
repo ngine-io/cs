@@ -2,8 +2,11 @@ dist
 build
 .venv
 .coverage
+coverage.xml
+htmlcov
 .eggs
 .tox
 *.egg-info
 *.pyc
+__pycache__/
 .*_cache

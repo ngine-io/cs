@@ -1,2 +1,90 @@
-[tool.black]
-line-length = 79
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cs"
+dynamic = ["version"]
+description = "A simple yet powerful CloudStack API client for Python and the command-line."
+readme = "README.rst"
+requires-python = ">=3.10"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [{ name = "Bruno Renié" }]
+keywords = ["cloudstack", "api", "client", "cli", "cloud"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "requests",
+    "tzdata",
+]
+
+[project.optional-dependencies]
+async = ["aiohttp"]
+highlight = ["pygments"]
+
+[project.scripts]
+cs = "cs:main"
+
+[project.urls]
+Homepage = "https://github.com/ngine-io/cs"
+Source = "https://github.com/ngine-io/cs"
+Issues = "https://github.com/ngine-io/cs/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.14",
+]
+
+[tool.hatch.version]
+path = "cs/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/cs",
+    "/tests.py",
+    "/README.rst",
+    "/LICENSE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["cs"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "PIE", # flake8-pie
+    "RUF", # ruff-specific rules
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=cs --cov-report=term-missing"
+testpaths = ["tests.py"]
+
+[tool.coverage.run]
+source = ["cs"]
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:"]
