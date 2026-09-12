@@ -324,6 +324,16 @@ class TestTrace:
 
 
 class TestSigning:
+    def test_unauthenticated_requests_are_not_signed(self, send, response):
+        """The integration port rejects requests carrying api key parameters."""
+        client = CloudStack(endpoint="http://localhost:8096/client/api")
+        send.return_value = response({"listzonesresponse": {"zone": []}})
+
+        client.listZones()
+
+        params = query(send.call_args[0][0])
+        assert params == {"command": ["listZones"], "response": ["json"]}
+
     def test_signature_is_stable(self):
         client = CloudStack(endpoint="https://localhost", key="foo", secret="bar")
         data = {"command": "listZones", "apiKey": "foo"}

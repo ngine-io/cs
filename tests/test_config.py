@@ -33,6 +33,14 @@ class TestEnvironmentConfig:
             endpoint="https://api.example.com/from-env",
         )
 
+    def test_endpoint_only(self, monkeypatch):
+        monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "http://localhost:8096/client/api")
+
+        assert read_config() == dict(
+            BASE_CONFIG,
+            endpoint="http://localhost:8096/client/api",
+        )
+
     def test_optional_keys(self, monkeypatch):
         monkeypatch.setenv("CLOUDSTACK_KEY", "test key from env")
         monkeypatch.setenv("CLOUDSTACK_SECRET", "test secret from env")
@@ -175,14 +183,28 @@ class TestIniConfig:
     def test_incomplete_config(self, write_ini):
         write_ini(
             """
-            [hanibal]
-            endpoint = https://api.example.com/from-file
+            [cloudstack]
+            key = test key
             secret = secret from file
             """
         )
 
         with pytest.raises(ValueError, match="missing the following keys"):
             read_config()
+
+    def test_key_and_secret_are_optional(self, write_ini):
+        write_ini(
+            """
+            [cloudstack]
+            endpoint = http://localhost:8096/client/api
+            """
+        )
+
+        assert read_config() == dict(
+            BASE_CONFIG,
+            name="cloudstack",
+            endpoint="http://localhost:8096/client/api",
+        )
 
     def test_unknown_region(self, write_ini):
         write_ini(
