@@ -61,6 +61,14 @@ In Python:
 
     cs.createSecurityGroup(name='web', description='HTTP traffic')
 
+The ``key`` and ``secret`` are optional. Leave them out to send
+unauthenticated requests, for example against the CloudStack integration
+port, which rejects requests carrying an API key or signature:
+
+.. code-block:: python
+
+    cs = CloudStack(endpoint='http://localhost:8096/client/api')
+
 From the command-line, this requires some configuration:
 
 .. code-block:: console
@@ -117,6 +125,8 @@ Configuration is read from several locations, in the following order:
 
 * The ``CLOUDSTACK_ENDPOINT``, ``CLOUDSTACK_KEY``, ``CLOUDSTACK_SECRET`` and
   ``CLOUDSTACK_METHOD`` environment variables,
+  (``CLOUDSTACK_KEY`` and ``CLOUDSTACK_SECRET`` are optional: leave them
+  unset for unauthenticated requests, e.g. against the integration port)
 * A ``CLOUDSTACK_CONFIG`` environment variable pointing to an ``.ini`` file,
 * A ``CLOUDSTACK_VERIFY`` (optional) environment variable pointing to a CA authority cert file,
 * A ``CLOUDSTACK_CERT`` (optional) environment variable pointing to a client PEM cert file,

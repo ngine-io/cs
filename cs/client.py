@@ -21,8 +21,10 @@ POLL_INTERVAL = 2.0
 EXPIRATION = timedelta(minutes=10)
 EXPIRES_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
-REQUIRED_CONFIG_KEYS = {"endpoint", "key", "secret", "method", "timeout"}
+REQUIRED_CONFIG_KEYS = {"endpoint", "method", "timeout"}
 ALLOWED_CONFIG_KEYS = {
+    "key",
+    "secret",
     "verify",
     "cert",
     "cert_key",
@@ -157,8 +159,8 @@ class CloudStack:
     def __init__(
         self,
         endpoint,
-        key,
-        secret,
+        key=None,
+        secret=None,
         timeout=10,
         method="get",
         verify=None,
@@ -234,17 +236,20 @@ class CloudStack:
         **kwargs,
     ):
         params = CaseInsensitiveDict(**kwargs)
-        params.update(
-            {
-                "apiKey": self.key,
-                opcode_name: command,
-            }
-        )
+        params[opcode_name] = command
+        # Unauthenticated requests, e.g. against the CloudStack integration
+        # port, must not carry any api key or signature related parameters.
+        if self.key:
+            params["apiKey"] = self.key
         if json:
             params["response"] = "json"
         if "page" in kwargs or fetch_list:
             params.setdefault("pagesize", PAGE_SIZE)
-        if "expires" not in params and self.expiration.total_seconds() >= 0:
+        if (
+            self.secret
+            and "expires" not in params
+            and self.expiration.total_seconds() >= 0
+        ):
             params["signatureVersion"] = "3"
             tz = ZoneInfo("UTC")
             expires = datetime.now(tz) + self.expiration
@@ -451,7 +456,12 @@ class CloudStack:
         """
         Compute a signature string according to the CloudStack
         signature method (hmac/sha1).
+
+        Without a secret the request is left unsigned, which is what the
+        CloudStack integration port expects.
         """
+        if not self.secret:
+            return
 
         # Python2/3 urlencode aren't good enough for this task.
         params = "&".join(
