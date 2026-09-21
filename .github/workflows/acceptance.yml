@@ -65,7 +65,7 @@ jobs:
         id: setup-cloudstack
         with:
           cloudstack-version: ${{ matrix.cloudstack-version }}
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
