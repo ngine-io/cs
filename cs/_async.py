@@ -11,6 +11,7 @@ from .client import (
     CloudStackApiException,
     CloudStackException,
     transform,
+    unwrap_response,
 )
 
 
@@ -81,7 +82,7 @@ class AIOCloudStack(CloudStack):
                     self.endpoint, headers=headers, **{kwarg: kwargs}
                 )
 
-                ctype = response.headers["content-type"].split(";")[0]
+                ctype = response.headers.get("content-type", "").split(";")[0]
                 try:
                     data = await response.json(content_type=ctype)
                 except ValueError as e:
@@ -93,8 +94,7 @@ class AIOCloudStack(CloudStack):
                         response=response,
                     ) from e
 
-                [key] = data.keys()
-                data = data[key]
+                data = unwrap_response(data, response)
                 if response.status != 200:
                     raise CloudStackApiException(
                         f"HTTP {response.status} response from CloudStack",

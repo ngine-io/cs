@@ -158,6 +158,19 @@ class CloudStackApiException(CloudStackException):
         return f"{message}, error: {self.error}"
 
 
+def unwrap_response(data, response):
+    """Return the value of the single top-level key of a CloudStack answer."""
+    try:
+        [key] = data.keys()
+    except (AttributeError, ValueError) as e:
+        raise CloudStackException(
+            "Unexpected response from CloudStack",
+            "a single top-level key was expected",
+            response=response,
+        ) from e
+    return data[key]
+
+
 class CloudStack:
     def __init__(
         self,
@@ -366,8 +379,7 @@ class CloudStack:
                     response=response,
                 ) from e
 
-            [key] = data.keys()
-            data = data[key]
+            data = unwrap_response(data, response)
         else:
             data = response.text
 

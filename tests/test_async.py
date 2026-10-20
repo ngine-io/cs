@@ -250,6 +250,19 @@ class TestAsyncRequest:
         assert asyncio.run(client.listZones(fetch_list=True)) == [{"id": "a"}]
         assert len(stub.requests) == 2
 
+    def test_unexpected_json_document(self, make_async_client):
+        client, _ = make_async_client([FakeResponse({"a": 1, "b": 2})])
+
+        with pytest.raises(CloudStackException, match="single top-level key"):
+            asyncio.run(client.listZones())
+
+    def test_missing_content_type(self, make_async_client):
+        answer = FakeResponse({"listzonesresponse": {}})
+        answer.headers = {}
+        client, _ = make_async_client([answer])
+
+        assert asyncio.run(client.listZones()) == {}
+
     def test_api_error(self, make_async_client):
         client, _ = make_async_client(
             [FakeResponse({"listzonesresponse": {"errortext": "Fail"}}, status=530)]

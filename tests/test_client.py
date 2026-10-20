@@ -322,6 +322,13 @@ class TestErrors:
         with pytest.raises(CloudStackException, match="Malformed JSON"):
             client.listVirtualMachines()
 
+    @pytest.mark.parametrize("payload", [{}, {"a": 1, "b": 2}, []])
+    def test_unexpected_json_document(self, client, send, response, payload):
+        send.return_value = response(payload)
+
+        with pytest.raises(CloudStackException, match="single top-level key"):
+            client.listZones()
+
     def test_javascript_content_type_is_accepted(self, client, send, response):
         send.return_value = response(
             {"listzonesresponse": {}}, content_type="text/javascript"
