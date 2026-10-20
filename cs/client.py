@@ -113,7 +113,9 @@ def transform(params):
         if isinstance(value, (str, bytes)):
             continue
 
-        if isinstance(value, int):
+        if isinstance(value, bool):
+            params[key] = str(value).lower()
+        elif isinstance(value, (int, float)):
             params[key] = str(value)
         elif isinstance(value, (list, tuple, set, dict)):
             if not value:
@@ -122,9 +124,10 @@ def transform(params):
                 if isinstance(value, dict):
                     value = [value]
                 if isinstance(value, set):
-                    value = list(value)
+                    # keep the order, and hence the signature, deterministic
+                    value = sorted(value, key=str)
                 if not isinstance(value[0], dict):
-                    params[key] = ",".join(value)
+                    params[key] = ",".join(map(str, value))
                 else:
                     params.pop(key)
                     for index, val in enumerate(value):
