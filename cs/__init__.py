@@ -18,6 +18,7 @@ from .client import (
     CloudStackApiException,
     CloudStackException,
     read_config,
+    strtobool,
 )
 from .version import __version__
 
@@ -48,6 +49,14 @@ def _format_json(data, theme):
         return pygments.highlight(output, JsonLexer(), formatter)
 
     return output
+
+
+def _env_flag(name):
+    """Read a boolean flag from the environment, e.g. CLOUDSTACK_TRACE=false."""
+    try:
+        return strtobool(os.environ.get(name, "false"))
+    except ValueError:
+        return False
 
 
 def main(args=None):
@@ -88,7 +97,7 @@ def main(args=None):
         "--trace",
         "-t",
         action="store_true",
-        default=os.environ.get("CLOUDSTACK_TRACE", False),
+        default=_env_flag("CLOUDSTACK_TRACE"),
         help="trace the HTTP requests done on stderr",
     )
     parser.add_argument(
