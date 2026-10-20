@@ -3,6 +3,7 @@ import contextlib
 import functools
 import ssl
 import sys
+from typing import Any
 
 import aiohttp
 import requests
@@ -28,21 +29,21 @@ class AIOCloudStack(CloudStack):
     open. Otherwise each call opens its own session.
     """
 
-    def __init__(self, *args, session=None, **kwargs):
+    def __init__(self, *args: Any, session: Any = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.session = session
         self._owns_session = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AIOCloudStack":
         if self.session is None:
             self.session = self._new_session()
             self._owns_session = True
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, *exc_info: object) -> None:
         await self.close()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the session opened by ``async with``, if any."""
         if self._owns_session:
             await self.session.close()
@@ -69,7 +70,7 @@ class AIOCloudStack(CloudStack):
             async with self._new_session() as session:
                 yield session
 
-    def _ssl_context(self):
+    def _ssl_context(self) -> ssl.SSLContext | bool:
         """Build the ssl argument for aiohttp's TCPConnector.
 
         ``verify`` is either a boolean or the path of a CA bundle, ``cert``

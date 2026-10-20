@@ -4,6 +4,7 @@ import os
 import sys
 from collections import defaultdict
 from configparser import NoSectionError
+from typing import Any
 
 try:
     import pygments
@@ -11,7 +12,7 @@ try:
     from pygments.lexers import JsonLexer
     from pygments.styles import get_style_by_name
 except ImportError:
-    pygments = None
+    pygments = None  # type: ignore[assignment]
 
 from .client import (
     CloudStack,
@@ -39,7 +40,7 @@ else:
     __all__.append("AIOCloudStack")
 
 
-def _format_json(data, theme):
+def _format_json(data: Any, theme: str) -> str:
     """Pretty print a dict as a JSON, with colors if pygments is present."""
     output = json.dumps(data, indent=2, sort_keys=True)
 
@@ -51,7 +52,7 @@ def _format_json(data, theme):
     return output
 
 
-def _unquote(value):
+def _unquote(value: str) -> str:
     """Strip the whitespace and one pair of matching quotes around a value."""
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
@@ -59,7 +60,7 @@ def _unquote(value):
     return value
 
 
-def _env_flag(name):
+def _env_flag(name: str) -> bool:
     """Read a boolean flag from the environment, e.g. CLOUDSTACK_TRACE=false."""
     try:
         return strtobool(os.environ.get(name, "false"))
@@ -67,7 +68,7 @@ def _env_flag(name):
         return False
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> bool:
     parser = argparse.ArgumentParser(description="Cloudstack client.")
     parser.add_argument(
         "--region",
