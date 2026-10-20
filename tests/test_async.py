@@ -237,6 +237,19 @@ class TestAsyncRequest:
         assert asyncio.run(client.listZones(fetch_list=True)) == []
         assert len(stub.requests) == 1
 
+    def test_fetch_list_stops_when_count_overshoots(self, make_async_client):
+        client, stub = make_async_client(
+            [
+                FakeResponse(
+                    {"listzonesresponse": {"count": 5, "zone": [{"id": "a"}]}}
+                ),
+                FakeResponse({"listzonesresponse": {"count": 5, "zone": []}}),
+            ]
+        )
+
+        assert asyncio.run(client.listZones(fetch_list=True)) == [{"id": "a"}]
+        assert len(stub.requests) == 2
+
     def test_api_error(self, make_async_client):
         client, _ = make_async_client(
             [FakeResponse({"listzonesresponse": {"errortext": "Fail"}}, status=530)]

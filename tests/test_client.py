@@ -235,6 +235,15 @@ class TestPagination:
         assert client.listZones(fetch_list=True) == []
         assert send.call_count == 1
 
+    def test_fetch_list_stops_when_count_overshoots(self, client, send, response):
+        send.side_effect = [
+            response({"listzonesresponse": {"count": 5, "zone": [{"id": "a"}]}}),
+            response({"listzonesresponse": {"count": 5, "zone": []}}),
+        ]
+
+        assert client.listZones(fetch_list=True) == [{"id": "a"}]
+        assert send.call_count == 2
+
 
 class TestRetry:
     def test_list_commands_are_retried(self, make_client, send, response):
