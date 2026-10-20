@@ -7,10 +7,9 @@ import re
 import sys
 import time
 from configparser import ConfigParser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 import requests
 from requests.structures import CaseInsensitiveDict
@@ -273,9 +272,8 @@ class CloudStack:
             and self.expiration.total_seconds() >= 0
         ):
             params["signatureVersion"] = "3"
-            tz = ZoneInfo("UTC")
-            expires = datetime.now(tz) + self.expiration
-            params["expires"] = expires.astimezone(tz).strftime(EXPIRES_FORMAT)
+            expires = datetime.now(timezone.utc) + self.expiration
+            params["expires"] = expires.strftime(EXPIRES_FORMAT)
 
         kind = "params" if self.method == "get" else "data"
         return kind, dict(params.items())
