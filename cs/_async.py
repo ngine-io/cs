@@ -123,6 +123,7 @@ class AIOCloudStack(CloudStack):
                 max_retry -= 1
                 if max_retry < 0 or not command.startswith(("list", "queryAsync")):
                     raise
+                await asyncio.sleep(self._retry_delay(self.retry - max_retry))
                 continue
             max_retry = self.retry
 

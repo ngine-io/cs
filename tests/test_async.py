@@ -330,17 +330,37 @@ class TestAsyncParity:
                 FakeResponse({"listzonesresponse": {"zone": []}}),
             ],
             retry=2,
+            retry_backoff=0,
         )
 
         assert asyncio.run(client.listZones()) == {"zone": []}
         assert len(stub.requests) == 3
 
     def test_retries_are_exhausted(self, make_async_client):
-        client, stub = make_async_client([ConnectionError()] * 2, retry=1)
+        client, stub = make_async_client(
+            [ConnectionError()] * 2, retry=1, retry_backoff=0
+        )
 
         with pytest.raises(ConnectionError):
             asyncio.run(client.listZones())
         assert len(stub.requests) == 2
+
+    def test_retries_back_off_exponentially(self, make_async_client, monkeypatch):
+        delays = []
+
+        async def sleep(delay):
+            delays.append(delay)
+
+        monkeypatch.setattr("cs._async.asyncio.sleep", sleep)
+        client, _ = make_async_client(
+            [ConnectionError()] * 3 + [FakeResponse({"listzonesresponse": {}})],
+            retry=3,
+            retry_backoff=0.5,
+        )
+
+        asyncio.run(client.listZones())
+
+        assert delays == [0.5, 1, 2]
 
     def test_other_commands_are_not_retried(self, make_async_client):
         client, stub = make_async_client([ConnectionError()], retry=5)

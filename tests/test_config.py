@@ -180,6 +180,12 @@ class TestIniConfig:
 
         assert read_config()["dangerous_no_tls_verify"] is False
 
+    def test_retry_backoff_is_configurable(self, monkeypatch):
+        monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "https://localhost")
+        monkeypatch.setenv("CLOUDSTACK_RETRY_BACKOFF", "1.5")
+
+        assert read_config()["retry_backoff"] == "1.5"
+
     def test_job_timeout_is_configurable(self, monkeypatch):
         monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "https://localhost")
         monkeypatch.setenv("CLOUDSTACK_JOB_TIMEOUT", "300")
