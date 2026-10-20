@@ -253,7 +253,7 @@ class TestPagination:
 
 class TestRetry:
     def test_list_commands_are_retried(self, make_client, send, response):
-        client = make_client(retry=2)
+        client = make_client(retry=2, retry_backoff=0)
         send.side_effect = [
             requests.exceptions.ConnectionError(),
             requests.exceptions.ConnectionError(),
@@ -264,12 +264,29 @@ class TestRetry:
         assert send.call_count == 3
 
     def test_retries_are_exhausted(self, make_client, send):
-        client = make_client(retry=1)
+        client = make_client(retry=1, retry_backoff=0)
         send.side_effect = requests.exceptions.ConnectionError()
 
         with pytest.raises(requests.exceptions.ConnectionError):
             client.listZones()
         assert send.call_count == 2
+
+    def test_retries_back_off_exponentially(
+        self, make_client, send, response, monkeypatch
+    ):
+        delays = []
+        monkeypatch.setattr("cs.client.time.sleep", delays.append)
+        client = make_client(retry=5, retry_backoff=1)
+        send.side_effect = [requests.exceptions.ConnectionError()] * 5 + [
+            response({"listzonesresponse": {}})
+        ]
+
+        client.listZones()
+
+        assert delays == [1, 2, 4, 8, 16]
+
+    def test_retry_delay_is_capped(self, make_client):
+        assert make_client(retry_backoff=1)._retry_delay(10) == 30
 
     def test_other_commands_are_not_retried(self, make_client, send):
         client = make_client(retry=5)

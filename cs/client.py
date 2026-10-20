@@ -17,6 +17,8 @@ from requests.structures import CaseInsensitiveDict
 TIMEOUT = 10
 PAGE_SIZE = 500
 POLL_INTERVAL = 2.0
+RETRY_BACKOFF = 0.5
+MAX_RETRY_DELAY = 30.0
 EXPIRATION = timedelta(minutes=10)
 EXPIRES_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
@@ -28,6 +30,7 @@ ALLOWED_CONFIG_KEYS = {
     "cert",
     "cert_key",
     "retry",
+    "retry_backoff",
     "theme",
     "expiration",
     "poll_interval",
@@ -184,6 +187,7 @@ class CloudStack:
         cert_key=None,
         name=None,
         retry=0,
+        retry_backoff=RETRY_BACKOFF,
         job_timeout=None,
         poll_interval=POLL_INTERVAL,
         expiration=EXPIRATION,
@@ -211,6 +215,7 @@ class CloudStack:
         self.cert = cert
         self.name = name
         self.retry = int(retry)
+        self.retry_backoff = float(retry_backoff)
         self.job_timeout = int(job_timeout) if job_timeout else None
         self.poll_interval = float(poll_interval)
         if not hasattr(expiration, "seconds"):
@@ -218,6 +223,10 @@ class CloudStack:
         self.expiration = expiration
         self.trace = bool(trace)
         self.fetch_result = fetch_result
+
+    def _retry_delay(self, attempt):
+        """Exponential backoff before the given retry attempt (1, 2, ...)."""
+        return min(self.retry_backoff * 2 ** (attempt - 1), MAX_RETRY_DELAY)
 
     def __repr__(self):
         return f"<CloudStack: {self.name or self.endpoint}>"
@@ -331,6 +340,7 @@ class CloudStack:
                 max_retry -= 1
                 if max_retry < 0 or not command.startswith(("list", "queryAsync")):
                     raise
+                time.sleep(self._retry_delay(self.retry - max_retry))
                 continue
             max_retry = self.retry
 
