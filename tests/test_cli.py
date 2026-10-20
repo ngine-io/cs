@@ -194,7 +194,14 @@ class TestErrors:
 
         assert cs.main(["listZones"]) is True
 
-        assert "Error: boom" in capsys.readouterr().err
+        assert capsys.readouterr().err == "Error: boom\n"
+
+    def test_error_details_are_printed_once(self, send, capsys):
+        send.side_effect = CloudStackException("boom", "detail", response=None)
+
+        assert cs.main(["listZones"]) is True
+
+        assert capsys.readouterr().err == "Error: boom\ndetail\n"
 
     @pytest.mark.parametrize(("value", "traced"), [("false", False), ("yes", True)])
     def test_trace_environment_variable(
@@ -308,3 +315,12 @@ class TestMainModule:
 
         assert exc_info.value.code == 0
         assert capsys.readouterr().out.strip() == cs.__version__
+
+    def test_python_dash_m_exit_code(self, monkeypatch, send):
+        monkeypatch.setattr(sys, "argv", ["cs", "listZones"])
+        send.side_effect = CloudStackException("boom", response=None)
+
+        with pytest.raises(SystemExit) as exc_info:
+            runpy.run_module("cs", run_name="__main__")
+
+        assert exc_info.value.code is True

@@ -174,8 +174,10 @@ def main(args=None):
                 sys.stderr.write(e.response.text)
                 sys.stderr.write("\n")
         else:
-            message, data = (e.args[0], e.args[0:])
-            sys.stderr.write(f"Error: {message}\n{data}\n")
+            message, *details = e.args
+            sys.stderr.write(f"Error: {message}\n")
+            for detail in details:
+                sys.stderr.write(f"{detail}\n")
 
     if response:
         sys.stdout.write(_format_json(response, theme=theme))
