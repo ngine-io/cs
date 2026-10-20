@@ -180,6 +180,12 @@ class TestIniConfig:
 
         assert read_config()["dangerous_no_tls_verify"] is False
 
+    def test_job_timeout_is_configurable(self, monkeypatch):
+        monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "https://localhost")
+        monkeypatch.setenv("CLOUDSTACK_JOB_TIMEOUT", "300")
+
+        assert read_config()["job_timeout"] == "300"
+
     def test_unparsable_boolean_is_left_alone(self, write_ini):
         write_ini(
             """
