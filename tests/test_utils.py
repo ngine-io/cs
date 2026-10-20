@@ -5,10 +5,14 @@ from cs.client import check_key, cs_encode, strtobool, transform
 
 class TestTransform:
     def test_scalars_are_stringified(self):
-        params = {"a": 1, "b": "foo", "c": b"bar", "d": True}
+        params = {"a": 1, "b": "foo", "c": b"bar", "d": 4.2}
         transform(params)
-        # booleans are ints as far as Python is concerned
-        assert params == {"a": "1", "b": "foo", "c": b"bar", "d": "True"}
+        assert params == {"a": "1", "b": "foo", "c": b"bar", "d": "4.2"}
+
+    def test_booleans_are_lowercased(self):
+        params = {"a": True, "b": False}
+        transform(params)
+        assert params == {"a": "true", "b": "false"}
 
     def test_none_values_are_dropped(self):
         params = {"a": None, "b": "foo"}
@@ -26,6 +30,16 @@ class TestTransform:
         transform(params)
         assert params["a"] in ("eggs,spam", "eggs")
 
+    def test_sequences_of_non_strings_are_joined(self):
+        params = {"a": [1, 2], "b": (True, "x")}
+        transform(params)
+        assert params == {"a": "1,2", "b": "True,x"}
+
+    def test_sets_are_joined_in_a_stable_order(self):
+        params = {"a": {"spam", "eggs", "ham"}}
+        transform(params)
+        assert params == {"a": "eggs,ham,spam"}
+
     def test_dict_becomes_an_indexed_map(self):
         params = {"d": {"key": "value"}}
         transform(params)
@@ -37,8 +51,8 @@ class TestTransform:
         assert params == {"d[0].key": "value", "d[1].key": "42"}
 
     def test_unsupported_type(self):
-        with pytest.raises(ValueError, match="float"):
-            transform({"a": 4.2})
+        with pytest.raises(ValueError, match="object"):
+            transform({"a": object()})
 
 
 class TestCsEncode:
