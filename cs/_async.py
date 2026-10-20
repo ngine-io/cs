@@ -16,12 +16,6 @@ from .client import (
 
 
 class AIOCloudStack(CloudStack):
-    def __getattr__(self, command):
-        def handler(**kwargs):
-            return self._request(command, **kwargs)
-
-        return handler
-
     def _ssl_context(self):
         """Build the ssl argument for aiohttp's TCPConnector.
 
