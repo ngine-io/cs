@@ -532,7 +532,7 @@ def read_config(ini_group=None):
     overrides = os.getenv("CLOUDSTACK_OVERRIDES", "").strip()
 
     if not overrides and set(env_conf).issuperset(REQUIRED_CONFIG_KEYS):
-        return env_conf
+        return _convert_booleans(env_conf)
 
     ini_conf = read_config_from_ini(ini_group)
 
@@ -548,11 +548,13 @@ def read_config(ini_group=None):
             "the configuration is missing the following keys: " + ", ".join(missings)
         )
 
-    # convert booleans values.
-    bool_keys = ("dangerous_no_tls_verify",)
-    for bool_key in bool_keys:
+    return _convert_booleans(config)
+
+
+def _convert_booleans(config):
+    """Turn the string values of the boolean settings into booleans."""
+    for bool_key in ("dangerous_no_tls_verify", "trace"):
         if isinstance(config[bool_key], str):
             with contextlib.suppress(ValueError):
                 config[bool_key] = strtobool(config[bool_key])
-
     return config

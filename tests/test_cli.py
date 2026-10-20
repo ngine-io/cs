@@ -196,6 +196,17 @@ class TestErrors:
 
         assert "Error: boom" in capsys.readouterr().err
 
+    @pytest.mark.parametrize(("value", "traced"), [("false", False), ("yes", True)])
+    def test_trace_environment_variable(
+        self, monkeypatch, send, response, capsys, value, traced
+    ):
+        monkeypatch.setenv("CLOUDSTACK_TRACE", value)
+        send.return_value = response({"listzonesresponse": {}})
+
+        cs.main(["listZones"])
+
+        assert ("GET https://localhost" in capsys.readouterr().err) is traced
+
     def test_malformed_option(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
             cs.main(["listZones", "not-an-option"])
@@ -278,6 +289,14 @@ class TestFormatting:
         cs.main(["listZones"])
 
         assert formatter.call_args.kwargs["theme"] == "monokai"
+
+
+class TestEnvFlag:
+    @pytest.mark.parametrize(("value", "expected"), [("on", True), ("maybe", False)])
+    def test_env_flag(self, monkeypatch, value, expected):
+        monkeypatch.setenv("CLOUDSTACK_TRACE", value)
+
+        assert cs._env_flag("CLOUDSTACK_TRACE") is expected
 
 
 class TestMainModule:

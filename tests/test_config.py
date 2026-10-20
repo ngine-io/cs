@@ -167,6 +167,19 @@ class TestIniConfig:
             dangerous_no_tls_verify=True,
         )
 
+    @pytest.mark.parametrize(("value", "expected"), [("false", False), ("1", True)])
+    def test_trace_is_a_boolean(self, monkeypatch, value, expected):
+        monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "https://localhost")
+        monkeypatch.setenv("CLOUDSTACK_TRACE", value)
+
+        assert read_config()["trace"] is expected
+
+    def test_tls_verify_flag_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("CLOUDSTACK_ENDPOINT", "https://localhost")
+        monkeypatch.setenv("CLOUDSTACK_DANGEROUS_NO_TLS_VERIFY", "false")
+
+        assert read_config()["dangerous_no_tls_verify"] is False
+
     def test_unparsable_boolean_is_left_alone(self, write_ini):
         write_ini(
             """
