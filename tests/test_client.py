@@ -1,3 +1,4 @@
+import copy
 import datetime
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
@@ -185,6 +186,11 @@ class TestRequest:
         client.listZones()
 
         close.assert_not_called()
+
+    def test_private_attributes_are_not_commands(self, client):
+        assert not hasattr(client, "_nope")
+        assert not hasattr(client, "__nope__")
+        assert copy.copy(client).endpoint == client.endpoint
 
     def test_signature_v3(self, make_client, send, response):
         client = make_client(expiration=600)

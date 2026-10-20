@@ -238,6 +238,11 @@ class CloudStack:
         print(response.text, "\n", file=sys.stderr)
 
     def __getattr__(self, command):
+        # Private and dunder lookups (copy, pickle, mock, ...) are not API
+        # commands.
+        if command.startswith("_"):
+            raise AttributeError(command)
+
         def handler(**kwargs):
             return self._request(command, **kwargs)
 
