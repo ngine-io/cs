@@ -109,7 +109,11 @@ class AIOCloudStack(CloudStack):
                     else:
                         final_data.extend(data[key])
                         page += 1
-                        if len(final_data) >= data.get("count", PAGE_SIZE):
+                        # An empty page means there is nothing left, whatever
+                        # count claims.
+                        if not data[key] or len(final_data) >= data.get(
+                            "count", PAGE_SIZE
+                        ):
                             done = True
                 elif fetch_result and "jobid" in data:
                     try:
