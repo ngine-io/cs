@@ -6,9 +6,11 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable, Iterable, MutableMapping
 from configparser import ConfigParser
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
+from typing import Any
 from urllib.parse import quote
 
 import requests
@@ -39,7 +41,7 @@ ALLOWED_CONFIG_KEYS = {
     "job_timeout",
     "header_*",
 }
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "timeout": 10,
     "method": "get",
     "retry": 0,
@@ -58,7 +60,7 @@ SUCCESS = 1
 FAILURE = 2
 
 
-def strtobool(val):
+def strtobool(val: str) -> bool:
     """Convert a string representation of truth to True or False.
 
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
@@ -76,7 +78,7 @@ def strtobool(val):
     raise ValueError(f"invalid truth value {val!r}")
 
 
-def check_key(key, allowed):
+def check_key(key: str, allowed: Iterable[str]) -> bool:
     """
     Validate that the specified key is allowed according the provided
     list of patterns.
@@ -88,7 +90,7 @@ def check_key(key, allowed):
     return any(fnmatch(key, pattern) for pattern in allowed)
 
 
-def cs_encode(s):
+def cs_encode(s: str) -> str:
     """Encode URI component like CloudStack would do before signing.
 
     java.net.URLEncoder.encode(s).replace('+', '%20')
@@ -96,7 +98,7 @@ def cs_encode(s):
     return quote(s, safe="*")
 
 
-def transform(params):
+def transform(params: MutableMapping[str, Any]) -> None:
     """
     Transforms an heterogeneous map of params into a CloudStack
     ready mapping of parameter to values.
@@ -144,7 +146,7 @@ def transform(params):
 class CloudStackException(Exception):
     """Exception nicely wrapping a request response."""
 
-    def __init__(self, *args, response=None):
+    def __init__(self, *args: object, response: Any = None) -> None:
         super().__init__(*args)
         self.response = response
 
@@ -152,16 +154,16 @@ class CloudStackException(Exception):
 class CloudStackApiException(CloudStackException):
     """Exception raised when CloudStack reports an API error."""
 
-    def __init__(self, *args, error=None, response=None):
+    def __init__(self, *args: object, error: Any = None, response: Any = None) -> None:
         super().__init__(*args, response=response)
         self.error = error
 
-    def __str__(self):
+    def __str__(self) -> str:
         message = self.args[0] if self.args else self.__class__.__qualname__
         return f"{message}, error: {self.error}"
 
 
-def unwrap_response(data, response):
+def unwrap_response(data: Any, response: Any) -> Any:
     """Return the value of the single top-level key of a CloudStack answer."""
     try:
         [key] = data.keys()
@@ -177,31 +179,32 @@ def unwrap_response(data, response):
 class CloudStack:
     def __init__(
         self,
-        endpoint,
-        key=None,
-        secret=None,
-        timeout=10,
-        method="get",
-        verify=None,
-        cert=None,
-        cert_key=None,
-        name=None,
-        retry=0,
-        retry_backoff=RETRY_BACKOFF,
-        job_timeout=None,
-        poll_interval=POLL_INTERVAL,
-        expiration=EXPIRATION,
-        trace=False,
-        dangerous_no_tls_verify=False,
-        headers=None,
-        session=None,
-        fetch_result=False,
-    ):
+        endpoint: str,
+        key: str | None = None,
+        secret: str | None = None,
+        timeout: int | str = 10,
+        method: str = "get",
+        verify: bool | str | None = None,
+        cert: str | tuple[str, str] | None = None,
+        cert_key: str | None = None,
+        name: str | None = None,
+        retry: int | str = 0,
+        retry_backoff: float | str = RETRY_BACKOFF,
+        job_timeout: int | str | None = None,
+        poll_interval: float | str = POLL_INTERVAL,
+        expiration: timedelta | int | str = EXPIRATION,
+        trace: bool | None = False,
+        dangerous_no_tls_verify: bool = False,
+        headers: dict[str, str] | None = None,
+        session: Any = None,
+        fetch_result: bool = False,
+    ) -> None:
         self.endpoint = endpoint
         self.key = key
         self.secret = secret
         self.timeout = int(timeout)
         self.method = method.lower()
+        self.verify: bool | str
         if verify:
             self.verify = verify
         else:
@@ -209,8 +212,8 @@ class CloudStack:
         if headers is None:
             headers = {}
         self.headers = headers
-        self.session = session if session is not None else requests.Session()
-        if cert and cert_key:
+        self.session: Any = session if session is not None else requests.Session()
+        if isinstance(cert, str) and cert_key:
             cert = (cert, cert_key)
         self.cert = cert
         self.name = name
@@ -218,17 +221,17 @@ class CloudStack:
         self.retry_backoff = float(retry_backoff)
         self.job_timeout = int(job_timeout) if job_timeout else None
         self.poll_interval = float(poll_interval)
-        if not hasattr(expiration, "seconds"):
+        if not isinstance(expiration, timedelta):
             expiration = timedelta(seconds=int(expiration))
         self.expiration = expiration
         self.trace = bool(trace)
         self.fetch_result = fetch_result
 
-    def _retry_delay(self, attempt):
+    def _retry_delay(self, attempt: int) -> float:
         """Exponential backoff before the given retry attempt (1, 2, ...)."""
         return min(self.retry_backoff * 2 ** (attempt - 1), MAX_RETRY_DELAY)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<CloudStack: {self.name or self.endpoint}>"
 
     def _trace_request(self, prepped):
@@ -246,13 +249,13 @@ class CloudStack:
         print(headers, "\n", file=sys.stderr)
         print(response.text, "\n", file=sys.stderr)
 
-    def __getattr__(self, command):
+    def __getattr__(self, command: str) -> Callable[..., Any]:
         # Private and dunder lookups (copy, pickle, mock, ...) are not API
         # commands.
         if command.startswith("_"):
             raise AttributeError(command)
 
-        def handler(**kwargs):
+        def handler(**kwargs: Any) -> Any:
             return self._request(command, **kwargs)
 
         return handler
@@ -481,7 +484,7 @@ class CloudStack:
         data["signature"] = base64.b64encode(digest).decode("utf-8").strip()
 
 
-def read_config_from_ini(ini_group=None):
+def read_config_from_ini(ini_group: str | None = None) -> dict[str, Any]:
     # Config file: $PWD/cloudstack.ini or $HOME/.cloudstack.ini
     # Last read wins in configparser
     paths = [
@@ -502,7 +505,7 @@ def read_config_from_ini(ini_group=None):
         if not conf.has_section(ini_group):
             return {"name": None}
 
-    ini_config = {
+    ini_config: dict[str, Any] = {
         k: v
         for k, v in conf.items(ini_group)
         if v and check_key(k, REQUIRED_CONFIG_KEYS.union(ALLOWED_CONFIG_KEYS))
@@ -518,7 +521,7 @@ def read_config_from_ini(ini_group=None):
     return ini_config
 
 
-def read_config(ini_group=None):
+def read_config(ini_group: str | None = None) -> dict[str, Any]:
     """
     Read the configuration from the environment, or config.
 
@@ -540,10 +543,10 @@ def read_config(ini_group=None):
 
     ini_conf = read_config_from_ini(ini_group)
 
-    overrides = {s.lower() for s in re.split(r"\W+", overrides)}
+    override_keys = {s.lower() for s in re.split(r"\W+", overrides)}
     config = dict(
         dict(env_conf, **ini_conf),
-        **{k: v for k, v in env_conf.items() if k in overrides},
+        **{k: v for k, v in env_conf.items() if k in override_keys},
     )
 
     missings = REQUIRED_CONFIG_KEYS.difference(config)
@@ -555,7 +558,7 @@ def read_config(ini_group=None):
     return _convert_booleans(config)
 
 
-def _convert_booleans(config):
+def _convert_booleans(config: dict[str, Any]) -> dict[str, Any]:
     """Turn the string values of the boolean settings into booleans."""
     for bool_key in ("dangerous_no_tls_verify", "trace"):
         if isinstance(config[bool_key], str):
