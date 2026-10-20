@@ -32,8 +32,11 @@ class FakeSession:
         return self
 
     async def __aexit__(self, *exc_info):
-        self.stub.closed_sessions.append(self)
+        await self.close()
         return False
+
+    async def close(self):
+        self.stub.closed_sessions.append(self)
 
     async def get(self, url, **kwargs):
         return self._request("get", url, kwargs)
@@ -280,6 +283,77 @@ class TestAsyncRequest:
             asyncio.run(client.listZones())
 
 
+class TestAsyncSession:
+    def zones(self):
+        return FakeResponse({"listzonesresponse": {}})
+
+    def test_each_call_has_its_own_session(self, make_async_client):
+        client, stub = make_async_client([self.zones(), self.zones()])
+
+        async def calls():
+            await client.listZones()
+            await client.listZones()
+
+        asyncio.run(calls())
+
+        assert len(stub.sessions) == 2
+        assert stub.closed_sessions == stub.sessions
+
+    def test_context_manager_shares_one_session(self, make_async_client):
+        client, stub = make_async_client([self.zones(), self.zones()])
+
+        async def calls():
+            async with client as cs:
+                await cs.listZones()
+                await cs.listZones()
+                assert stub.closed_sessions == []
+
+        asyncio.run(calls())
+
+        assert len(stub.sessions) == 1
+        assert stub.closed_sessions == stub.sessions
+        assert client.session is None
+
+    def test_given_session_is_left_open(self, make_async_client):
+        client, stub = make_async_client([self.zones()])
+        session = FakeSession(stub, {})
+        client.session = session
+
+        async def calls():
+            async with client:
+                await client.listZones()
+
+        asyncio.run(calls())
+
+        assert stub.sessions == []
+        assert stub.closed_sessions == []
+        assert client.session is session
+
+    def test_session_argument(self):
+        session = object()
+        client = AIOCloudStack(endpoint="https://localhost", session=session)
+        assert client.session is session
+
+    def test_close_without_a_session(self, make_async_client):
+        client, _ = make_async_client([])
+        asyncio.run(client.close())
+
+    def test_ssl_context_is_built_once(self, make_async_client, monkeypatch):
+        client, _ = make_async_client([self.zones(), self.zones()])
+        built = []
+        monkeypatch.setattr(
+            AIOCloudStack, "_ssl_context", lambda self: built.append(1) or False
+        )
+
+        async def calls():
+            await client.listZones()
+            await client.listZones()
+
+        asyncio.run(calls())
+
+        assert built == [1]
+
+
 class TestAsyncJobResult:
     def deploy(self):
         return FakeResponse({"deployvirtualmachineresponse": {"jobid": "job-1"}})
@@ -304,6 +378,18 @@ class TestAsyncJobResult:
 
         assert result == {"virtualmachine": {"id": "vm-1"}}
         assert len(stub.requests) == 3
+        # the job is polled within the session of the call
+        assert len(stub.sessions) == 1
+
+    def test_headers_are_sent_while_polling(self, make_async_client):
+        client, stub = make_async_client(
+            [self.deploy(), self.job(jobstatus=1, jobresultcode=0, jobresult={})],
+            headers={"X-Tenant": "acme"},
+        )
+
+        asyncio.run(client.deployVirtualMachine(fetch_result=True))
+
+        assert stub.requests[1][2]["headers"] == {"X-Tenant": "acme"}
 
     def test_job_failure(self, make_async_client):
         client, _ = make_async_client(
