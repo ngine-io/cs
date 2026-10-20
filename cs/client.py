@@ -398,20 +398,16 @@ class CloudStack:
         return data
 
     def _jobresult(self, jobid, json=True, headers=None):
-        """Poll the async job result.
-
-        To be run via in a Thread, the result is put within
-        the result list which is a hack.
-        """
+        """Poll the async job result until it is done or job_timeout expires."""
         failures = 0
         response = None
 
         total_time = self.job_timeout or 2**30
-        remaining = timedelta(seconds=total_time)
-        endtime = datetime.now() + remaining
+        endtime = time.monotonic() + total_time
+        remaining = total_time
 
-        while remaining.total_seconds() > 0:
-            timeout = max(min(self.timeout, remaining.total_seconds()), 1)
+        while remaining > 0:
+            timeout = max(min(self.timeout, remaining), 1)
             try:
                 kind, params = self._prepare_request("queryAsyncJobResult", jobid=jobid)
                 response = self._send(kind, params, headers, timeout)
@@ -442,7 +438,7 @@ class CloudStack:
                     raise
 
             time.sleep(self.poll_interval)
-            remaining = endtime - datetime.now()
+            remaining = endtime - time.monotonic()
 
         if response is not None:
             response.status_code = 408
