@@ -298,9 +298,7 @@ class CloudStack:
         kind, params = self._prepare_request(
             command, json, opcode_name, fetch_list, **params
         )
-        if headers is None:
-            headers = {}
-        headers.update(self.headers)
+        headers = {**self.headers, **(headers or {})}
 
         done = False
         max_retry = self.retry

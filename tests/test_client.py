@@ -163,6 +163,19 @@ class TestRequest:
         [request], _ = send.call_args
         assert request.headers["X-Tenant"] == "acme"
 
+    def test_call_headers_take_precedence(self, make_client, send, response):
+        client = make_client(headers={"X-Tenant": "acme", "X-Other": "keep"})
+        send.return_value = response({"listzonesresponse": {}})
+        headers = {"X-Tenant": "override"}
+
+        client.listZones(headers=headers)
+
+        [request], _ = send.call_args
+        assert request.headers["X-Tenant"] == "override"
+        assert request.headers["X-Other"] == "keep"
+        # the caller's dict is left untouched
+        assert headers == {"X-Tenant": "override"}
+
     def test_session_is_kept_open(self, client, send, response, monkeypatch):
         close = mock.Mock()
         monkeypatch.setattr("requests.Session.close", close)
