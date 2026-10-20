@@ -34,6 +34,7 @@ ALLOWED_CONFIG_KEYS = {
     "poll_interval",
     "trace",
     "dangerous_no_tls_verify",
+    "job_timeout",
     "header_*",
 }
 DEFAULT_CONFIG = {
