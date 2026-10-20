@@ -1,4 +1,5 @@
 import datetime
+from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -161,6 +162,16 @@ class TestRequest:
 
         [request], _ = send.call_args
         assert request.headers["X-Tenant"] == "acme"
+
+    def test_session_is_kept_open(self, client, send, response, monkeypatch):
+        close = mock.Mock()
+        monkeypatch.setattr("requests.Session.close", close)
+        send.return_value = response({"listzonesresponse": {}})
+
+        client.listZones()
+        client.listZones()
+
+        close.assert_not_called()
 
     def test_signature_v3(self, make_client, send, response):
         client = make_client(expiration=600)

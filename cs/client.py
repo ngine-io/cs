@@ -261,6 +261,30 @@ class CloudStack:
         kind = "params" if self.method == "get" else "data"
         return kind, dict(params.items())
 
+    def _send(self, kind, params, headers, timeout):
+        """Sign the parameters, then send the request to the endpoint."""
+        transform(params)
+        params.pop("signature", None)
+        self._sign(params)
+
+        req = requests.Request(
+            self.method, self.endpoint, headers=headers, **{kind: params}
+        )
+        prepped = req.prepare()
+        if self.trace:
+            self._trace_request(prepped)
+
+        response = self.session.send(
+            prepped,
+            timeout=timeout,
+            verify=self.verify,
+            cert=self.cert,
+        )
+
+        if self.trace:
+            self._trace_response(response)
+        return response
+
     def _request(
         self,
         command,
@@ -286,35 +310,14 @@ class CloudStack:
             if fetch_list:
                 params["page"] = page
 
-            transform(params)
-            params.pop("signature", None)
-            self._sign(params)
-
-            req = requests.Request(
-                self.method, self.endpoint, headers=headers, **{kind: params}
-            )
-            prepped = req.prepare()
-            if self.trace:
-                self._trace_request(prepped)
-
             try:
-                with self.session as session:
-                    response = session.send(
-                        prepped,
-                        timeout=self.timeout,
-                        verify=self.verify,
-                        cert=self.cert,
-                    )
-
+                response = self._send(kind, params, headers, self.timeout)
             except requests.exceptions.ConnectionError:
                 max_retry -= 1
                 if max_retry < 0 or not command.startswith(("list", "queryAsync")):
                     raise
                 continue
             max_retry = self.retry
-
-            if self.trace:
-                self._trace_response(response)
 
             data = self._response_value(response, json)
 
@@ -394,31 +397,7 @@ class CloudStack:
             timeout = max(min(self.timeout, remaining.total_seconds()), 1)
             try:
                 kind, params = self._prepare_request("queryAsyncJobResult", jobid=jobid)
-
-                transform(params)
-                self._sign(params)
-
-                req = requests.Request(
-                    self.method,
-                    self.endpoint,
-                    headers=headers,
-                    **{kind: params},
-                )
-                prepped = req.prepare()
-                if self.trace:
-                    self._trace_request(prepped)
-
-                with self.session as session:
-                    response = session.send(
-                        prepped,
-                        timeout=timeout,
-                        verify=self.verify,
-                        cert=self.cert,
-                    )
-
-                if self.trace:
-                    self._trace_response(response)
-
+                response = self._send(kind, params, headers, timeout)
                 j = self._response_value(response, json)
 
                 failures = 0
