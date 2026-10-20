@@ -480,7 +480,7 @@ def read_config_from_ini(ini_group=None):
         os.path.join(os.path.expanduser("~"), ".cloudstack.ini"),
         os.path.join(os.getcwd(), "cloudstack.ini"),
     ]
-    # Look at CLOUDSTACK_CONFIG first if present
+    # CLOUDSTACK_CONFIG, if present, is read last and thus wins
     if "CLOUDSTACK_CONFIG" in os.environ:
         paths.append(os.path.expanduser(os.environ["CLOUDSTACK_CONFIG"]))
     if not any(os.path.exists(c) for c in paths):
