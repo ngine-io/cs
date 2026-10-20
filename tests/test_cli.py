@@ -49,6 +49,23 @@ class TestSuccess:
 
         assert query(send)["name"][0] == "zone 1"
 
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (' "zone 1" ', "zone 1"),
+            ("it's", "it's"),
+            ("zone'", "zone'"),
+            ("\"'zone'\"", "'zone'"),
+            ("'zone\"", "'zone\""),
+        ],
+    )
+    def test_only_matching_quotes_are_stripped(self, send, response, value, expected):
+        send.return_value = response({"listzonesresponse": {}})
+
+        cs.main(["listZones", f"name={value}"])
+
+        assert query(send)["name"][0] == expected
+
     def test_repeated_arguments_are_joined(self, send, response):
         send.return_value = response({"listzonesresponse": {}})
 

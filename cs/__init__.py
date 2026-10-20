@@ -51,6 +51,14 @@ def _format_json(data, theme):
     return output
 
 
+def _unquote(value):
+    """Strip the whitespace and one pair of matching quotes around a value."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
 def _env_flag(name):
     """Read a boolean flag from the environment, e.g. CLOUDSTACK_TRACE=false."""
     try:
@@ -135,7 +143,7 @@ def main(args=None):
     kwargs = defaultdict(set)
     for arg in options.arguments:
         key, value = arg
-        kwargs[key].add(value.strip(" \"'"))
+        kwargs[key].add(_unquote(value))
 
     try:
         config = read_config(ini_group=options.region)
