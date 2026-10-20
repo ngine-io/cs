@@ -1,4 +1,5 @@
 import asyncio
+import json
 import ssl
 from types import SimpleNamespace
 
@@ -14,6 +15,7 @@ from cs import AIOCloudStack  # noqa: E402
 class FakeResponse:
     def __init__(self, payload, status=200, content_type="application/json"):
         self.status = status
+        self.reason = "OK" if status == 200 else "Error"
         self.headers = {"content-type": f"{content_type};charset=utf-8"}
         self._payload = payload
 
@@ -21,6 +23,11 @@ class FakeResponse:
         if isinstance(self._payload, str):
             raise ValueError(f"Expecting value: {self._payload!r}")
         return self._payload
+
+    async def text(self):
+        if isinstance(self._payload, str):
+            return self._payload
+        return json.dumps(self._payload)
 
 
 class FakeSession:
@@ -61,6 +68,8 @@ class FakeSession:
 
 class FakeAiohttp:
     """Stand-in for the aiohttp module, without any I/O."""
+
+    ClientConnectionError = ConnectionError
 
     def __init__(self, responses):
         self.responses = list(responses)
@@ -281,6 +290,64 @@ class TestAsyncRequest:
 
         with pytest.raises(CloudStackException, match="Make sure endpoint"):
             asyncio.run(client.listZones())
+
+
+class TestAsyncParity:
+    def test_raw_response(self, make_async_client):
+        client, _ = make_async_client([FakeResponse("<xml/>")])
+
+        assert asyncio.run(client.listZones(json=False)) == "<xml/>"
+
+    def test_raw_response_error(self, make_async_client):
+        client, _ = make_async_client([FakeResponse("<error/>", status=431)])
+
+        with pytest.raises(CloudStackApiException) as exc_info:
+            asyncio.run(client.listZones(json=False))
+
+        assert exc_info.value.error == "<error/>"
+
+    def test_request_and_response_are_traced(self, make_async_client, capsys):
+        client, _ = make_async_client(
+            [FakeResponse({"listzonesresponse": {}})],
+            trace=True,
+            headers={"X-Tenant": "acme"},
+        )
+
+        asyncio.run(client.listZones())
+
+        err = capsys.readouterr().err
+        assert "GET https://localhost/?" in err
+        assert "command=listZones" in err
+        assert "X-Tenant" in err
+        assert "200 OK" in err
+        assert '{"listzonesresponse": {}}' in err
+
+    def test_list_commands_are_retried(self, make_async_client):
+        client, stub = make_async_client(
+            [
+                ConnectionError(),
+                ConnectionError(),
+                FakeResponse({"listzonesresponse": {"zone": []}}),
+            ],
+            retry=2,
+        )
+
+        assert asyncio.run(client.listZones()) == {"zone": []}
+        assert len(stub.requests) == 3
+
+    def test_retries_are_exhausted(self, make_async_client):
+        client, stub = make_async_client([ConnectionError()] * 2, retry=1)
+
+        with pytest.raises(ConnectionError):
+            asyncio.run(client.listZones())
+        assert len(stub.requests) == 2
+
+    def test_other_commands_are_not_retried(self, make_async_client):
+        client, stub = make_async_client([ConnectionError()], retry=5)
+
+        with pytest.raises(ConnectionError):
+            asyncio.run(client.deployVirtualMachine())
+        assert len(stub.requests) == 1
 
 
 class TestAsyncSession:

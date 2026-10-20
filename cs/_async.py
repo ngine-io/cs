@@ -2,8 +2,10 @@ import asyncio
 import contextlib
 import functools
 import ssl
+import sys
 
 import aiohttp
+import requests
 
 from .client import (
     PAGE_SIZE,
@@ -107,39 +109,25 @@ class AIOCloudStack(CloudStack):
 
         headers = {**self.headers, **(headers or {})}
 
-        handler = getattr(session, self.method)
-
         done = False
+        max_retry = self.retry
         final_data = []
         page = 1
         while not done:
             if fetch_list:
                 kwargs["page"] = page
 
-            transform(kwargs)
-            kwargs.pop("signature", None)
-            self._sign(kwargs)
-            response = await handler(self.endpoint, headers=headers, **{kwarg: kwargs})
-
-            ctype = response.headers.get("content-type", "").split(";")[0]
             try:
-                data = await response.json(content_type=ctype)
-            except ValueError as e:
-                msg = f"Make sure endpoint URL {self.endpoint!r} is correct."
+                response = await self._send(session, kwarg, kwargs, headers)
+            except aiohttp.ClientConnectionError:
+                max_retry -= 1
+                if max_retry < 0 or not command.startswith(("list", "queryAsync")):
+                    raise
+                continue
+            max_retry = self.retry
 
-                raise CloudStackException(
-                    f"HTTP {response.status} response from CloudStack",
-                    f"{e}. {msg}",
-                    response=response,
-                ) from e
+            data = await self._response_value(response, json)
 
-            data = unwrap_response(data, response)
-            if response.status != 200:
-                raise CloudStackApiException(
-                    f"HTTP {response.status} response from CloudStack",
-                    error=data,
-                    response=response,
-                )
             if fetch_list:
                 try:
                     [key] = [k for k in data if k != "count"]
@@ -169,6 +157,59 @@ class AIOCloudStack(CloudStack):
                 final_data = data
                 done = True
         return final_data
+
+    async def _send(self, session, kind, params, headers):
+        """Sign the parameters, then send the request to the endpoint."""
+        transform(params)
+        params.pop("signature", None)
+        self._sign(params)
+
+        if self.trace:
+            # requests renders the request exactly like the sync client would
+            req = requests.Request(
+                self.method, self.endpoint, headers=headers, **{kind: params}
+            )
+            self._trace_request(req.prepare())
+
+        handler = getattr(session, self.method)
+        response = await handler(self.endpoint, headers=headers, **{kind: params})
+
+        if self.trace:
+            await self._trace_async_response(response)
+        return response
+
+    async def _trace_async_response(self, response):
+        print(response.status, response.reason, file=sys.stderr)
+        headers = "\n".join(f"{k}: {v}" for k, v in response.headers.items())
+        print(headers, "\n", file=sys.stderr)
+        print(await response.text(), "\n", file=sys.stderr)
+
+    async def _response_value(self, response, json=True):
+        """Parse the response, see CloudStack._response_value."""
+        if json:
+            ctype = response.headers.get("content-type", "").split(";")[0]
+            try:
+                data = await response.json(content_type=ctype)
+            except ValueError as e:
+                msg = f"Make sure endpoint URL {self.endpoint!r} is correct."
+
+                raise CloudStackException(
+                    f"HTTP {response.status} response from CloudStack",
+                    f"{e}. {msg}",
+                    response=response,
+                ) from e
+
+            data = unwrap_response(data, response)
+        else:
+            data = await response.text()
+
+        if response.status != 200:
+            raise CloudStackApiException(
+                f"HTTP {response.status} response from CloudStack",
+                error=data,
+                response=response,
+            )
+        return data
 
     async def _jobresult(self, session, jobid, response, headers):
         failures = 0
