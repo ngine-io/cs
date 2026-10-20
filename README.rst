@@ -156,10 +156,16 @@ seconds). The default value is 10.
 
 ``CLOUDSTACK_RETRY`` or the ``retry`` entry in the configuration file
 (integer) can be used to retry ``list`` and ``queryAsync`` requests on
-failure. The default value is 0, meaning no retry.
+connection errors. The default value is 0, meaning no retry.
 
-``CLOUDSTACK_JOB_TIMEOUT`` or the `job_timeout`` entry in the configuration file
-(float) can be used to set how long an async call is retried assuming ``fetch_result`` is set to true). The default value is ``None``, it waits forever.
+``CLOUDSTACK_RETRY_BACKOFF`` or the ``retry_backoff`` entry in the configuration
+file (number of seconds, float) sets how long to wait before the first retry.
+The delay doubles for every further retry, up to 30 seconds. The default value
+is 0.5.
+
+``CLOUDSTACK_JOB_TIMEOUT`` or the ``job_timeout`` entry in the configuration file
+(integer, seconds) can be used to set how long an async call is polled, assuming
+``fetch_result`` is set to true. The default value is ``None``, it waits forever.
 
 ``CLOUDSTACK_POLL_INTERVAL`` or the ``poll_interval`` entry in the configuration file (number of seconds, float) can be used to set how frequently polling an async job result is done. The default value is 2.
 
@@ -170,6 +176,18 @@ failure. The default value is 0, meaning no retry.
 ``CLOUDSTACK_DANGEROUS_NO_TLS_VERIFY`` or the ``dangerous_no_tls_verify`` entry
 in the configuration file (boolean) can be used to deactivate the TLS verification
 made when using the HTTPS protocol.
+
+Boolean settings, such as ``dangerous_no_tls_verify`` and ``trace``, accept
+``true``/``false``, ``yes``/``no``, ``on``/``off`` and ``1``/``0``.
+
+TLS verification is always on, unless ``dangerous_no_tls_verify`` is set. The
+``verify`` setting only selects a CA bundle: in Python, ``verify=False`` is the
+same as leaving it out and does **not** turn the verification off:
+
+.. code-block:: python
+
+    CloudStack(endpoint=..., verify='/path/to/ca.crt')     # custom CA bundle
+    CloudStack(endpoint=..., dangerous_no_tls_verify=True)  # no verification
 
 Multiple credentials can be set in ``.cloudstack.ini``. This allows selecting
 the credentials or endpoint to use with a command-line flag.
@@ -223,21 +241,25 @@ under the hood. The ``trace`` flag (or ``CLOUDSTACK_TRACE``) does just that::
 Async client
 ------------
 
-``cs`` provides the ``AIOCloudStack`` class for async/await calls in Python
-3.5+.
+``cs`` provides the ``AIOCloudStack`` class for async/await calls. It supports
+the same options as ``CloudStack``.
 
 .. code-block:: python
 
     import asyncio
     from cs import AIOCloudStack, read_config
 
-    cs = AIOCloudStack(**read_config())
-
     async def main():
-       vms = await cs.listVirtualMachines(fetch_list=True)
-       print(vms)
+       async with AIOCloudStack(**read_config()) as cs:
+           vms = await cs.listVirtualMachines(fetch_list=True)
+           print(vms)
 
     asyncio.run(main())
+
+Used with ``async with``, all calls share one HTTP session and its connection
+pool. Without it, every call opens and closes its own session. An existing
+``aiohttp.ClientSession`` can be passed as ``session=``. It is left open, and
+its own connector settings apply instead of ``verify`` and ``cert``.
 
 Async deployment of multiple VMs
 ________________________________
@@ -247,21 +269,20 @@ ________________________________
     import asyncio
     from cs import AIOCloudStack, read_config
 
-    cs = AIOCloudStack(**read_config())
-
     machine = {"zoneid": ..., "serviceofferingid": ..., "templateid": ...}
 
     async def main():
-       tasks = asyncio.gather(*(cs.deployVirtualMachine(name=f"vm-{i}",
-                                                        **machine,
-                                                        fetch_result=True)
-                                for i in range(5)))
+        async with AIOCloudStack(**read_config()) as cs:
+            results = await asyncio.gather(*(
+                cs.deployVirtualMachine(name=f"vm-{i}", **machine, fetch_result=True)
+                for i in range(5)
+            ))
 
-       results = await tasks
-
-       # Destroy all of them, but skip waiting on the job results
-       await asyncio.gather(*(cs.destroyVirtualMachine(id=result['virtualmachine']['id'])
-                              for result in results))
+            # Destroy all of them, but skip waiting on the job results
+            await asyncio.gather(*(
+                cs.destroyVirtualMachine(id=result["virtualmachine"]["id"])
+                for result in results
+            ))
 
     asyncio.run(main())
 
